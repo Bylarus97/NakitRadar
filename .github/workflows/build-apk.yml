@@ -5,6 +5,9 @@ on:
     branches: [ "main", "master" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest
@@ -24,10 +27,22 @@ jobs:
           gradle-version: '8.9'
 
       - name: Debug APK Derle
-        run: gradle assembleDebug --no-daemon
+        run: |
+          gradle assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/NakitRadar.apk
 
       - name: APK Dosyasını Yükle (İndirilebilir Artifact)
         uses: actions/upload-artifact@v4
         with:
           name: NakitRadar-Android-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/debug/NakitRadar.apk
+
+      - name: Doğrudan İndirilebilir GitHub Release Yayınla
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v2.0-latest
+          name: "NakitRadar v2.0 — Yeni Arayüz + Kalan Kota & Bildirim Motoru"
+          body: "Doğrudan telefonunuza indirip kurabileceğiniz güncel NakitRadar.apk dosyası aşağıdadır."
+          files: app/build/outputs/apk/debug/NakitRadar.apk
+          prerelease: false
+          make_latest: true

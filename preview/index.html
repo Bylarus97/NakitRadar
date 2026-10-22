@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>NakitRadar — Modern Fintech Cüzdan & Kombo Asistanı</title>
+  <title>NakitRadar — Kalan Kota & Bildirim Takip Motoru</title>
   <style>
     :root {
       --bg: #f4f6fa;
@@ -106,7 +106,6 @@
     }
     .icon-btn:hover { transform: translateY(-1px); border-color: var(--primary); }
 
-    /* Yatay Cüzdan Karuseli (Apple Wallet / Revolut Stili) */
     .wallet-carousel {
       display: flex;
       gap: 12px;
@@ -116,8 +115,8 @@
     }
     .wallet-carousel::-webkit-scrollbar { display: none; }
     .wallet-card {
-      min-width: 192px;
-      height: 112px;
+      min-width: 194px;
+      height: 114px;
       border-radius: 20px;
       padding: 14px;
       color: #fff;
@@ -127,7 +126,7 @@
       cursor: pointer;
       position: relative;
       box-shadow: 0 10px 20px rgba(15, 23, 42, 0.14);
-      transition: transform 0.2s, box-shadow 0.2s;
+      transition: transform 0.2s;
       user-select: none;
     }
     .wallet-card:hover { transform: translateY(-2px); }
@@ -147,7 +146,6 @@
       border-radius: 6px;
       font-size: 10px;
       font-weight: 800;
-      letter-spacing: 0.4px;
     }
     .wallet-name {
       font-size: 14px;
@@ -162,7 +160,7 @@
       align-items: flex-end;
       margin-top: 2px;
     }
-    .wallet-count { font-size: 11px; opacity: 0.88; font-weight: 500; }
+    .wallet-count { font-size: 11px; opacity: 0.9; font-weight: 600; }
     .wallet-amount { font-size: 17px; font-weight: 800; }
 
     .toast-banner {
@@ -171,8 +169,8 @@
       background: var(--primary-container);
       color: var(--on-primary-container);
       border-radius: 12px;
-      font-size: 12px;
-      font-weight: 600;
+      font-size: 11.5px;
+      font-weight: 700;
       display: none;
     }
 
@@ -215,7 +213,6 @@
       background: var(--surface-variant);
       color: var(--text);
       cursor: pointer;
-      transition: 0.15s;
     }
     .cat-pill.active {
       background: var(--text);
@@ -259,6 +256,7 @@
     }
     .pill-amber { background: var(--tertiary-container); color: var(--on-tertiary-container); }
     .pill-blue { background: var(--secondary-container); color: var(--on-secondary-container); }
+    .pill-muted { background: var(--surface-variant); color: var(--text-muted); }
     .pill-green {
       background: var(--primary-container);
       color: var(--on-primary-container);
@@ -267,7 +265,6 @@
       border-radius: 10px;
     }
 
-    /* Görsel Akış Şeması (Visual Flow Pipeline) */
     .pipeline-row {
       display: flex;
       align-items: center;
@@ -303,15 +300,15 @@
 
     .progress-bar {
       width: 100%;
-      height: 6px;
+      height: 7px;
       background: var(--surface-variant);
-      border-radius: 3px;
+      border-radius: 4px;
       overflow: hidden;
       margin: 8px 0;
     }
     .progress-fill {
       height: 100%;
-      border-radius: 3px;
+      border-radius: 4px;
       transition: width 0.25s;
     }
 
@@ -341,7 +338,6 @@
       font-weight: 800;
     }
 
-    /* Tıklayınca Açılan Bottom Sheet (Detay Penceresi) */
     .sheet-backdrop {
       position: absolute;
       inset: 0;
@@ -357,7 +353,7 @@
       background: var(--surface);
       border-radius: 28px 28px 0 0;
       padding: 16px 20px 26px;
-      max-height: 80%;
+      max-height: 82%;
       overflow-y: auto;
       box-shadow: 0 -10px 30px rgba(15, 23, 42, 0.2);
     }
@@ -379,6 +375,7 @@
       font-size: 13px;
       cursor: pointer;
     }
+    .btn-full:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-outline {
       background: var(--surface-variant);
       color: var(--text);
@@ -408,11 +405,11 @@
           <div class="brand-logo">⚡</div>
           <div class="brand-title">NakitRadar</div>
         </div>
-        <div class="brand-sub" id="headerSub">Kazanılabilir Havuz: 0 ₺</div>
+        <div class="brand-sub" id="headerSub">Kalan Havuz: 0 ₺</div>
       </div>
       <div class="icon-btn-group">
-        <button class="icon-btn" title="Cihazı Tara" onclick="simulateScan()">📱</button>
-        <button class="icon-btn" title="Bildirim Yakala" onclick="simulateNotification()">🔔</button>
+        <button class="icon-btn" title="Kasada Ödeme Bildirimi Simüle Et" onclick="simulateSpendNotification('paycell', 1050, 'MARKET_GIDA', 'MİGROS (Paycell Bildirimi)')">🔔</button>
+        <button class="icon-btn" title="Tüm Kotaları Sıfırla" onclick="resetAllQuotas()">↺</button>
       </div>
     </div>
 
@@ -444,13 +441,15 @@
         <span>Turkcell+Paycell</span>
       </div>
       <div class="nav-item" id="nav-3" onclick="switchTab(3)">
-        <span>✨</span>
-        <span>AI & Ayarlar</span>
+        <span>📊</span>
+        <span>Takip & AI</span>
       </div>
     </div>
   </div>
 
   <script>
+    const STORAGE_KEY = "nakitradar_v2_quota_state";
+
     const categories = [
       { id: "MARKET_GIDA", name: "Market", emoji: "🛒" },
       { id: "FATURA_OPERATOR", name: "Fatura & Turkcell", emoji: "📱" },
@@ -461,17 +460,17 @@
     ];
 
     const apps = [
-      { id: "turkcell", name: "Turkcell", badge: "TCELL", type: "OPERATOR", enabled: true, grad: "linear-gradient(135deg, #f59e0b, #1d4ed8)", url: "https://www.turkcell.com.tr/kampanyalar", hint: "Ayrıcalıklar > Kampanyalar & Fatura > Paycell Ödeme" },
-      { id: "paycell", name: "Paycell", badge: "PAYCELL", type: "WALLET", enabled: true, grad: "linear-gradient(135deg, #0284c7, #1e3a8a)", url: "https://paycell.com.tr/kampanyalar", hint: "Fırsatlar > Nakit İade (Hemen Katıl!)" },
-      { id: "bonusflas", name: "BonusFlaş", badge: "BONUS", type: "BANK", enabled: true, grad: "linear-gradient(135deg, #059669, #064e3b)", url: "https://www.bonus.com.tr/kampanyalar", hint: "Bana Özel > Süpermarket & E-Ticaret" },
-      { id: "juzdan", name: "Akbank Juzdan", badge: "JUZDAN", type: "BANK", enabled: true, grad: "linear-gradient(135deg, #ef4444, #991b1b)", url: "https://www.axess.com.tr/axess/kampanya", hint: "Senin İçin > Bana Özel Chip-Para" },
-      { id: "nays", name: "Nays", badge: "NAYS", type: "WALLET", enabled: true, grad: "linear-gradient(135deg, #9333ea, #4c1d95)", url: "https://www.naysapp.com.tr/firsatlar", hint: "Fırsatlar > %10 Hediye Nakit" },
-      { id: "papara", name: "Papara", badge: "PAPARA", type: "WALLET", enabled: true, grad: "linear-gradient(135deg, #18181b, #3f3f46)", url: "https://www.papara.com/cashback", hint: "Cashback > Anında Nakit İade" },
-      { id: "worldmobil", name: "World Mobil", badge: "WORLD", type: "BANK", enabled: true, grad: "linear-gradient(135deg, #7c3aed, #3b0764)", url: "https://www.worldcard.com.tr/kampanyalar", hint: "Sana Özel > Sektör Kampanyaları" },
-      { id: "bankkart", name: "Ziraat Bankkart", badge: "ZİRAAT", type: "BANK", enabled: true, grad: "linear-gradient(135deg, #dc2626, #7f1d1d)", url: "https://www.bankkart.com.tr/kampanyalar", hint: "Kampanyalar > Bankkart Lira" }
+      { id: "turkcell", name: "Turkcell", badge: "TCELL", type: "OPERATOR", enabled: true, grad: "linear-gradient(135deg, #f59e0b, #1d4ed8)" },
+      { id: "paycell", name: "Paycell", badge: "PAYCELL", type: "WALLET", enabled: true, grad: "linear-gradient(135deg, #0284c7, #1e3a8a)" },
+      { id: "bonusflas", name: "BonusFlaş", badge: "BONUS", type: "BANK", enabled: true, grad: "linear-gradient(135deg, #059669, #064e3b)" },
+      { id: "juzdan", name: "Akbank Juzdan", badge: "JUZDAN", type: "BANK", enabled: true, grad: "linear-gradient(135deg, #ef4444, #991b1b)" },
+      { id: "nays", name: "Nays", badge: "NAYS", type: "WALLET", enabled: true, grad: "linear-gradient(135deg, #9333ea, #4c1d95)" },
+      { id: "papara", name: "Papara", badge: "PAPARA", type: "WALLET", enabled: true, grad: "linear-gradient(135deg, #18181b, #3f3f46)" },
+      { id: "worldmobil", name: "World Mobil", badge: "WORLD", type: "BANK", enabled: true, grad: "linear-gradient(135deg, #7c3aed, #3b0764)" },
+      { id: "bankkart", name: "Ziraat Bankkart", badge: "ZİRAAT", type: "BANK", enabled: true, grad: "linear-gradient(135deg, #dc2626, #7f1d1d)" }
     ];
 
-    let campaigns = [
+    const defaultCampaigns = [
       {
         id: "c1", appId: "turkcell", appName: "Turkcell",
         title: "Turkcell Faturanı Paycell ile Öde, 150 ₺ Nakit İade!",
@@ -480,7 +479,7 @@
         category: "FATURA_OPERATOR", minSpend: 350, rate: 0, flat: 150, cap: 150, requiresJoin: true,
         canStackAsBank: false, synergyPartner: "paycell", synergyBonus: 75,
         synergyNote: "Paycell uygulamasındaki 'Fatura Ödemelerine 75 ₺ İade' kampanyasına da katılırsanız tek faturadan 150 + 75 = 225 ₺ çifte iade alırsınız!",
-        joined: true
+        joined: true, steps: 0, earned: 0
       },
       {
         id: "c2", appId: "paycell", appName: "Paycell",
@@ -490,7 +489,7 @@
         category: "FATURA_OPERATOR", minSpend: 300, rate: 0, flat: 75, cap: 225, requiresJoin: true,
         canStackAsBank: false, synergyPartner: "turkcell", synergyBonus: 150,
         synergyNote: "Turkcell faturanızı öderken hem Turkcell 150 ₺ hem Paycell 75 ₺ kampanyası aynı anda tetiklenir!",
-        joined: true
+        joined: true, steps: 0, earned: 0
       },
       {
         id: "c3", appId: "paycell", appName: "Paycell",
@@ -500,7 +499,7 @@
         category: "MARKET_GIDA", minSpend: 1000, rate: 0, flat: 150, cap: 150, requiresJoin: true,
         canStackAsBank: false, synergyPartner: "bonusflas", synergyBonus: 125,
         synergyNote: "Banka kartı kampanyası + Paycell Kart ile ödemeyi birleştirerek iki kurumdan da iade alabilirsiniz.",
-        joined: false
+        joined: false, steps: 0, earned: 0
       },
       {
         id: "c4", appId: "bonusflas", appName: "BonusFlaş",
@@ -508,7 +507,7 @@
         description: "BonusFlaş 'Bana Özel' sekmesinde gizli duran kampanya: Her 1.000 ₺ harcamaya 125 ₺ nakit değerinde Bonus.",
         whereToFindInApp: "BonusFlaş > Alt Menü: Bana Özel > Süpermarket > Hemen Katıl",
         category: "MARKET_GIDA", minSpend: 1000, rate: 0, flat: 125, cap: 375, requiresJoin: true,
-        canStackAsBank: true, joined: false
+        canStackAsBank: true, joined: false, steps: 0, earned: 0
       },
       {
         id: "c5", appId: "juzdan", appName: "Akbank Juzdan",
@@ -516,7 +515,7 @@
         description: "Juzdan 'Senin İçin' sekmesinden katılımda 1.250 ₺ harcamaya 150 ₺ Chip-Para ('Chip-Para ile Öde' ile ekstreden nakit düşülebilir!).",
         whereToFindInApp: "Juzdan > Senin İçin > Bana Özel Kampanyalar > Hemen Katıl",
         category: "MARKET_GIDA", minSpend: 1250, rate: 0, flat: 150, cap: 450, requiresJoin: true,
-        canStackAsBank: true, joined: false
+        canStackAsBank: true, joined: false, steps: 0, earned: 0
       },
       {
         id: "c6", appId: "nays", appName: "Nays",
@@ -524,17 +523,17 @@
         description: "Nays ile yapılan market alışverişlerinde ve fatura ödemelerinde %10 anında nakit iade.",
         whereToFindInApp: "Nays > Fırsatlar > Market & Fatura",
         category: "MARKET_GIDA", minSpend: 200, rate: 10, flat: 0, cap: 150, requiresJoin: false,
-        canStackAsBank: false, joined: true
+        canStackAsBank: false, joined: true, steps: 0, earned: 0
       },
       {
-        id: "c7", appId: "tcell_pasaj", appId: "turkcell", appName: "Turkcell",
+        id: "c7", appId: "turkcell", appName: "Turkcell",
         title: "Turkcell Pasaj Alışverişinde Paycell ile 2.000 ₺'ye 300 ₺ İade",
         description: "Turkcell uygulaması içindeki Pasaj sekmesinden yapılacak alışverişlerde Paycell ile ödemeye 300 ₺ nakit iade.",
         whereToFindInApp: "Turkcell > Alt Menü: Pasaj > Kampanyalar > Paycell Nakit İade Fırsatı",
         category: "ETICARET", minSpend: 2000, rate: 0, flat: 300, cap: 300, requiresJoin: true,
         canStackAsBank: false, synergyPartner: "paycell", synergyBonus: 100,
         synergyNote: "Paycell Hediye Dünyası'ndaki puanlarınızı da aynı işlemde ekstra 100 ₺ nakit indirime dönüştürebilirsiniz.",
-        joined: false
+        joined: false, steps: 0, earned: 0
       },
       {
         id: "c8", appId: "nays", appName: "Nays",
@@ -542,7 +541,7 @@
         description: "Trendyol, Hepsiburada ve Amazon alışverişlerinizde Nays ile ödemeye %10 doğrudan nakit iade.",
         whereToFindInApp: "Nays > Fırsatlar > E-Ticaret %10 Hediye Nakit",
         category: "ETICARET", minSpend: 250, rate: 10, flat: 0, cap: 200, requiresJoin: false,
-        canStackAsBank: false, joined: false
+        canStackAsBank: false, joined: false, steps: 0, earned: 0
       },
       {
         id: "c9", appId: "paycell", appName: "Paycell",
@@ -550,7 +549,7 @@
         description: "Paycell Kart veya Paycell QR ile 1.250 ₺ ve üzeri yakıt alımına 175 ₺ nakit iade.",
         whereToFindInApp: "Paycell > Fırsatlar > Araç & Akaryakıt > Hemen Katıl",
         category: "AKARYAKIT", minSpend: 1250, rate: 0, flat: 175, cap: 175, requiresJoin: true,
-        canStackAsBank: false, joined: false
+        canStackAsBank: false, joined: false, steps: 0, earned: 0
       },
       {
         id: "c10", appId: "bankkart", appName: "Ziraat Bankkart",
@@ -558,46 +557,58 @@
         description: "Bankkart Mobil'den katılıp 1.000 ₺ harcama yaptığınızda 150 ₺ Bankkart Lira.",
         whereToFindInApp: "Bankkart Mobil > Kampanyalar > Hemen Katıl",
         category: "AKARYAKIT", minSpend: 1000, rate: 0, flat: 150, cap: 450, requiresJoin: true,
-        canStackAsBank: true, joined: false
-      },
-      {
-        id: "c11", appId: "paycell", appName: "Paycell",
-        title: "YouTube, Netflix, Spotify ve Oyunda %50 Nakit İade",
-        description: "Dijital platform ve oyun harcamalarınızda Paycell Kart ile ödemeye %50 (maks. 150 ₺) nakit iade.",
-        whereToFindInApp: "Paycell > Fırsatlar > Dijital & Oyun > Hemen Katıl",
-        category: "DIJITAL_OYUN", minSpend: 50, rate: 50, flat: 0, cap: 150, requiresJoin: true,
-        canStackAsBank: false, joined: false
-      },
-      {
-        id: "c12", appId: "papara", appName: "Papara",
-        title: "Eczane ve Ulaşım Kartlarında Anında %15 Cashback",
-        description: "Papara Card ile tüm eczanelerde ve ulaşım kartı yüklemelerinde katılım şartsız anında nakit iade.",
-        whereToFindInApp: "Papara > Cashback Sekmesi (Otomatik Aktif)",
-        category: "ECZANE_SAGLIK", minSpend: 50, rate: 15, flat: 0, cap: 150, requiresJoin: false,
-        canStackAsBank: false, joined: false
+        canStackAsBank: true, joined: false, steps: 0, earned: 0
       }
     ];
 
+    let campaigns = JSON.parse(JSON.stringify(defaultCampaigns));
+    let spendLogs = [];
     let currentTab = 0;
     let selectedFilterApp = null;
     let selectedCategory = "MARKET_GIDA";
     let simulatedSpend = 2250;
     let currentPlans = [];
 
+    function loadPersistedState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (parsed.campaigns) campaigns = parsed.campaigns;
+        if (parsed.spendLogs) spendLogs = parsed.spendLogs;
+      } catch (e) {}
+    }
+
+    function savePersistedState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ campaigns, spendLogs }));
+      } catch (e) {}
+    }
+
+    function remainingQuota(cam) {
+      return Math.max(0, cam.cap - (cam.earned || 0));
+    }
+
+    function isQuotaFull(cam) {
+      return remainingQuota(cam) <= 0.01;
+    }
+
     function calcReward(cam, amount) {
+      if (isQuotaFull(cam)) return 0;
       if (amount < cam.minSpend) return 0;
       let raw = (cam.flat > 0 && cam.rate === 0) ? cam.flat : ((amount * (cam.rate / 100)) + cam.flat);
-      return Math.min(raw, cam.cap);
+      return Math.min(raw, remainingQuota(cam));
     }
 
     function buildStrategies() {
       const enabledIds = new Set(apps.filter(a => a.enabled).map(a => a.id));
       const appMap = Object.fromEntries(apps.map(a => [a.id, a]));
-      const rel = campaigns.filter(c => enabledIds.has(c.appId) && c.category === selectedCategory);
+      // Kotası dolanları otomatik ele!
+      const rel = campaigns.filter(c => enabledIds.has(c.appId) && c.category === selectedCategory && !isQuotaFull(c));
       const plans = [];
 
       // 1. Sinerji Zinciri
-      const syn = rel.find(c => c.synergyPartner && enabledIds.has(c.synergyPartner) && simulatedSpend >= c.minSpend);
+      const syn = rel.find(c => c.synergyPartner && enabledIds.has(c.synergyPartner) && simulatedSpend >= c.minSpend && calcReward(c, simulatedSpend) > 0);
       if (syn) {
         const mainR = calcReward(syn, simulatedSpend);
         const totalR = mainR + (syn.synergyBonus || 0);
@@ -605,9 +616,10 @@
           id: "p_syn",
           badge: "⚡ EKOSİSTEM SİNERJİSİ",
           title: `${syn.appName} + Paycell Çifte İade Zinciri`,
-          subtitle: "İki kardeş uygulamanın kampanyasını aynı harcamada tetikleyerek çifte nakit iade alın.",
+          subtitle: "İki kardeş uygulamanın kalan kotasını aynı harcamada tetikleyerek çifte nakit iade alın.",
           totalCashback: totalR,
           percent: Math.round((totalR / simulatedSpend) * 100),
+          involvedIds: [syn.id],
           steps: [
             { num: 1, appName: "Paycell", title: "Paycell Fırsatlar'da Katıl", detail: syn.synergyNote, path: "Paycell > Fırsatlar > Hemen Katıl", reward: syn.synergyBonus, appId: "paycell" },
             { num: 2, appName: syn.appName, title: `${syn.appName} Üzerinden Öde`, detail: syn.description, path: syn.whereToFindInApp, reward: mainR, appId: syn.appId }
@@ -616,8 +628,8 @@
       }
 
       // 2. Çifte Kazanç Kombosu
-      const wallets = rel.filter(c => appMap[c.appId]?.type === "WALLET" && simulatedSpend >= c.minSpend);
-      const banks = rel.filter(c => appMap[c.appId]?.type === "BANK" && c.canStackAsBank && simulatedSpend >= c.minSpend);
+      const wallets = rel.filter(c => appMap[c.appId]?.type === "WALLET" && simulatedSpend >= c.minSpend && calcReward(c, simulatedSpend) > 0);
+      const banks = rel.filter(c => appMap[c.appId]?.type === "BANK" && c.canStackAsBank && simulatedSpend >= c.minSpend && calcReward(c, simulatedSpend) > 0);
       if (wallets.length > 0 && banks.length > 0) {
         const bestW = [...wallets].sort((a,b) => calcReward(b, simulatedSpend) - calcReward(a, simulatedSpend))[0];
         const bestB = [...banks].sort((a,b) => calcReward(b, simulatedSpend) - calcReward(a, simulatedSpend))[0];
@@ -628,9 +640,10 @@
           id: "p_combo",
           badge: "🔥 ÇİFTE KAZANÇ KOMBOSU",
           title: `${bestB.appName} + ${bestW.appName} Kombosu`,
-          subtitle: "Banka kartı kampanyası ile ön ödemeli cüzdan iadesini aynı harcamada birleştirin.",
+          subtitle: `Banka kalan kotası (${remainingQuota(bestB)} ₺) ile cüzdan kalan kotasını (${remainingQuota(bestW)} ₺) birleştirin.`,
           totalCashback: tot,
           percent: Math.round((tot / simulatedSpend) * 100),
+          involvedIds: [bestB.id, bestW.id],
           steps: [
             { num: 1, appName: bestB.appName, title: `${bestB.appName} Kampanyasına Katıl`, detail: bestB.title, path: bestB.whereToFindInApp, reward: bR, appId: bestB.appId },
             { num: 2, appName: bestW.appName, title: `${bestW.appName} ile Öde`, detail: bestW.title, path: bestW.whereToFindInApp, reward: wR, appId: bestW.appId }
@@ -639,20 +652,22 @@
       }
 
       // 3. Harcama Bölme
-      const eligible = [...rel].filter(c => c.minSpend <= simulatedSpend)
+      const eligible = [...rel].filter(c => c.minSpend <= simulatedSpend && remainingQuota(c) > 0)
         .sort((a,b) => (calcReward(b, b.minSpend)/b.minSpend) - (calcReward(a, a.minSpend)/a.minSpend));
       if (eligible.length >= 2) {
         let rem = simulatedSpend;
         let splitSteps = [];
+        let involvedIds = [];
         let splitTot = 0;
         for (const c of eligible) {
           if (rem >= c.minSpend && splitSteps.length < 3) {
-            const slice = c.rate > 0 ? Math.min(rem, Math.max(c.minSpend, c.cap / (c.rate/100))) : c.minSpend;
+            const slice = c.rate > 0 ? Math.min(rem, Math.max(c.minSpend, remainingQuota(c) / (c.rate/100))) : c.minSpend;
             if (rem >= slice) {
               const r = calcReward(c, slice);
               if (r > 0) {
                 rem -= slice;
                 splitTot += r;
+                involvedIds.push(c.id);
                 splitSteps.push({
                   num: splitSteps.length + 1,
                   appName: c.appName,
@@ -672,9 +687,10 @@
             id: "p_split",
             badge: "✂️ HARCAMA BÖLME STRATEJİSİ",
             title: `Ödemeyi ${splitSteps.length} Parçaya Böl (+${Math.round(splitTot - bestSingle)} ₺ Ekstra)`,
-            subtitle: `Tek kartta üst limite takılmak yerine ödemeyi bölerek ${Math.round(splitTot)} ₺ iade alın.`,
+            subtitle: `Tek kartta kalan kota sınırına takılmak yerine ödemeyi bölerek ${Math.round(splitTot)} ₺ iade alın.`,
             totalCashback: splitTot,
             percent: Math.round((splitTot / simulatedSpend) * 100),
+            involvedIds,
             steps: splitSteps
           });
         }
@@ -688,9 +704,10 @@
           id: "p_single",
           badge: "🎯 TEK İŞLEMDE EN İYİ",
           title: `Tek Seferde Öde: ${best.c.appName}`,
-          subtitle: "Harcamayı bölmeden tek seferde ödeyecekseniz en yüksek net iadeyi verir.",
+          subtitle: `Kalan ${remainingQuota(best.c)} ₺ kotası üzerinden tek seferde en yüksek net iadeyi verir.`,
           totalCashback: best.r,
           percent: Math.round((best.r / simulatedSpend) * 100),
+          involvedIds: [best.c.id],
           steps: [
             { num: 1, appName: best.c.appName, title: `${best.c.appName} ile Öde`, detail: best.c.description, path: best.c.whereToFindInApp, reward: best.r, appId: best.c.appId }
           ]
@@ -704,26 +721,68 @@
       const t = document.getElementById("toastBanner");
       t.textContent = msg;
       t.style.display = "block";
-      setTimeout(() => { t.style.display = "none"; }, 3500);
+      setTimeout(() => { t.style.display = "none"; }, 4200);
     }
 
-    function simulateScan() {
-      showToast("✅ Cihaz tarandı: 8 Cüzdan & Banka uygulaması senkronize edildi.");
-    }
+    function simulateSpendNotification(appId, amount, category, merchant) {
+      const matched = campaigns
+        .filter(c => c.appId === appId && c.category === category && !isQuotaFull(c) && amount >= c.minSpend)
+        .sort((a,b) => calcReward(b, amount) - calcReward(a, amount))[0];
 
-    function simulateNotification() {
-      campaigns.unshift({
-        id: "notif_" + Date.now(),
-        appId: "paycell",
-        appName: "Paycell",
-        title: "Bildirim Fırsatı: 750 ₺ Harcamaya 125 ₺ Anında Nakit İade!",
-        description: "Paycell bildiriminden otomatik yakalandı ve strateji motoruna eklendi.",
-        whereToFindInApp: "Paycell > Bildirim Çanı > Bana Özel > Hemen Katıl",
-        category: selectedCategory,
-        minSpend: 750, rate: 0, flat: 125, cap: 125, requiresJoin: true,
-        canStackAsBank: false, joined: false
+      let earned = 0;
+      if (matched) {
+        earned = calcReward(matched, amount);
+        matched.earned = Math.min(matched.cap, (matched.earned || 0) + earned);
+        matched.steps = (matched.steps || 0) + 1;
+        matched.joined = true;
+      }
+
+      const now = new Date();
+      const timeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+      spendLogs.unshift({
+        id: "log_" + Date.now(),
+        appName: matched ? matched.appName : appId.toUpperCase(),
+        merchant,
+        amount,
+        earned,
+        time: timeStr
       });
-      showToast("🔔 Paycell'den yeni '+125 ₺ Nakit İade' bildirimi yakalandı!");
+
+      savePersistedState();
+
+      if (matched && isQuotaFull(matched)) {
+        showToast(`🎉 ${merchant} (${amount} ₺) yakalandı: +${earned} ₺ iade! '${matched.appName}' kotası doldu ve strateji motorundan elendi!`);
+      } else if (matched) {
+        showToast(`✅ ${merchant} (${amount} ₺) yakalandı: +${earned} ₺ iade! (Kalan Kota: ${remainingQuota(matched)} ₺)`);
+      } else {
+        showToast(`ℹ️ ${merchant} (${amount} ₺) harcaması kaydedildi (Bu uygulamada açık kota kalmadı).`);
+      }
+      render();
+    }
+
+    function recordManualCampaignStep(camId) {
+      const c = campaigns.find(x => x.id === camId);
+      if (!c || isQuotaFull(c)) return;
+      simulateSpendNotification(c.appId, c.minSpend, c.category, `${c.appName} Harcaması`);
+      closeSheet();
+    }
+
+    function resetSingleQuota(camId) {
+      const c = campaigns.find(x => x.id === camId);
+      if (!c) return;
+      c.earned = 0;
+      c.steps = 0;
+      savePersistedState();
+      showToast(`↺ '${c.appName}' kampanya kotası sıfırlandı ve strateji motoruna geri eklendi.`);
+      closeSheet();
+      render();
+    }
+
+    function resetAllQuotas() {
+      campaigns.forEach(c => { c.earned = 0; c.steps = 0; });
+      spendLogs = [];
+      savePersistedState();
+      showToast("↺ Tüm kampanya kotaları ve harcama geçmişi sıfırlandı.");
       render();
     }
 
@@ -744,7 +803,20 @@
       if (ev) ev.stopPropagation();
       const c = campaigns.find(x => x.id === camId);
       if (c) c.joined = !c.joined;
+      savePersistedState();
       render();
+    }
+
+    function applyPlanQuotas(planId) {
+      const plan = currentPlans.find(p => p.id === planId);
+      if (!plan) return;
+      (plan.involvedIds || []).forEach(cid => {
+        const c = campaigns.find(x => x.id === cid);
+        if (c && !isQuotaFull(c)) {
+          simulateSpendNotification(c.appId, c.minSpend, c.category, `${plan.title}`);
+        }
+      });
+      closeSheet();
     }
 
     function openPlanSheet(planId) {
@@ -770,7 +842,9 @@
             </div>
           `).join("")}
         </div>
-        <button class="btn-full" style="margin-top:16px;" onclick="closeSheet()">Tamam, Anladım</button>
+        <button class="btn-full" style="margin-top:14px;" onclick="applyPlanQuotas('${plan.id}')">
+          ✓ Bu Stratejiyle Ödedim (Kotaları Düş & Kaydet)
+        </button>
       `;
       document.getElementById("sheetBackdrop").classList.add("open");
     }
@@ -778,32 +852,32 @@
     function openCampaignSheet(camId) {
       const c = campaigns.find(x => x.id === camId);
       if (!c) return;
+      const rem = remainingQuota(c);
+      const full = isQuotaFull(c);
       const sheet = document.getElementById("sheetContent");
       sheet.innerHTML = `
         <div class="sheet-handle"></div>
-        <span class="pill-badge pill-green">${c.appName} • +${c.cap} ₺ Nakit İade</span>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span class="pill-badge pill-green">${c.appName} • Kalan Kota: ${rem} ₺</span>
+          <span style="font-size:12px; font-weight:800; color:var(--primary);">Kazanılan: ${c.earned || 0} / ${c.cap} ₺</span>
+        </div>
         <div style="font-size:18px; font-weight:800; margin-top:8px;">${c.title}</div>
         <div style="font-size:13px; color:var(--text-muted); margin-top:6px; line-height:1.45;">${c.description}</div>
         <div style="background:var(--surface-variant); border-radius:14px; padding:14px; margin-top:12px;">
           <div style="font-size:12px; font-weight:800; color:var(--secondary);">🧭 Uygulamada Hangi Sekmede Bulunur?</div>
           <div style="font-size:13px; font-weight:600; margin-top:4px;">${c.whereToFindInApp}</div>
         </div>
-        ${c.synergyNote ? `
-          <div style="background:var(--tertiary-container); color:var(--on-tertiary-container); border-radius:14px; padding:12px; margin-top:10px; font-size:12px; font-weight:600;">
-            ⚡ Kombo İpucu: ${c.synergyNote}
-          </div>
-        ` : ''}
-        <div style="display:flex; gap:10px; margin-top:16px;">
-          <button class="btn-full" style="background:var(--surface-variant); color:var(--text);" onclick="toggleJoin('${c.id}'); closeSheet();">
-            ${c.joined ? '✓ Katıldım İşaretli' : 'Katıldım İşaretle'}
+        <div style="display:flex; gap:8px; margin-top:14px;">
+          <button class="btn-full" ${full ? 'disabled' : ''} onclick="recordManualCampaignStep('${c.id}')">
+            ${full ? '✓ Kota Tamamen Doldu' : `💳 ${c.minSpend} ₺ Harcama İşle (+1 Adım)`}
           </button>
-          <button class="btn-full" onclick="closeSheet()">Kapat</button>
+          ${(c.earned || 0) > 0 ? `<button class="btn-outline" onclick="resetSingleQuota('${c.id}')">Sıfırla</button>` : ''}
         </div>
       `;
       document.getElementById("sheetBackdrop").classList.add("open");
     }
 
-    function closeSheet(ev) {
+    function closeSheet() {
       document.getElementById("sheetBackdrop").classList.remove("open");
     }
 
@@ -811,42 +885,43 @@
       const activeApps = apps.filter(a => a.enabled);
       const enabledIds = new Set(activeApps.map(a => a.id));
       const activeCampaigns = campaigns.filter(c => enabledIds.has(c.appId));
-      const totalPot = activeCampaigns.reduce((s, c) => s + c.cap, 0);
-      const joinedTot = campaigns.filter(c => c.joined).reduce((s, c) => s + c.cap, 0);
+      const totalRemPool = activeCampaigns.reduce((s, c) => s + remainingQuota(c), 0);
+      const totalEarned = campaigns.reduce((s, c) => s + (c.earned || 0), 0);
+      const fullCount = activeCampaigns.filter(c => isQuotaFull(c)).length;
 
-      document.getElementById("headerSub").textContent = `Kazanılabilir Havuz: ${totalPot} ₺ • Katıldığım: ${joinedTot} ₺`;
+      document.getElementById("headerSub").textContent = `Kalan Havuz: ${totalRemPool} ₺ • Kazanılan: +${totalEarned} ₺`;
 
-      // Cüzdan Karuseli Render
       const carousel = document.getElementById("walletCarousel");
       carousel.innerHTML = `
         <div class="wallet-card ${selectedFilterApp === null ? 'selected' : ''}"
-             style="background: linear-gradient(135deg, #0f172a, #1e293b); min-width: 168px;"
+             style="background: linear-gradient(135deg, #0f172a, #1e293b); min-width: 174px;"
              onclick="selectWalletCard(null)">
           <div class="wallet-top">
             <span class="wallet-badge">TÜM CÜZDANLAR</span>
             <span>💳</span>
           </div>
           <div>
-            <div style="font-size:21px; font-weight:800;">${totalPot} ₺</div>
-            <div style="font-size:11px; color:#34d399; font-weight:700;">${activeApps.length} Uygulama • ${activeCampaigns.length} Fırsat</div>
+            <div style="font-size:19px; font-weight:800;">${totalRemPool} ₺ Kalan</div>
+            <div style="font-size:11px; color:#34d399; font-weight:700;">Kazanılan: +${totalEarned} ₺</div>
           </div>
         </div>
         ${activeApps.map(app => {
           const appCams = campaigns.filter(c => c.appId === app.id);
-          const sum = appCams.reduce((s,c) => s + c.cap, 0);
+          const remSum = appCams.reduce((s,c) => s + remainingQuota(c), 0);
+          const earnSum = appCams.reduce((s,c) => s + (c.earned || 0), 0);
           return `
             <div class="wallet-card ${selectedFilterApp === app.id ? 'selected' : ''}"
                  style="background: ${app.grad};"
                  onclick="selectWalletCard('${app.id}')">
               <div class="wallet-top">
                 <span class="wallet-badge">${app.badge}</span>
-                <span>)))</span>
+                <span style="font-size:10px; font-weight:700;">${earnSum > 0 ? `Kazanılan: +${earnSum} ₺` : `${appCams.length} Fırsat`}</span>
               </div>
               <div>
                 <div class="wallet-name">${app.name}</div>
                 <div class="wallet-bottom">
-                  <span class="wallet-count">${appCams.length} Kampanya</span>
-                  <span class="wallet-amount">+${sum} ₺</span>
+                  <span class="wallet-count">Kalan Kota</span>
+                  <span class="wallet-amount">+${remSum} ₺</span>
                 </div>
               </div>
             </div>
@@ -863,7 +938,7 @@
             <div style="display:flex; justify-content:space-between; align-items:center;">
               <div>
                 <div style="font-size:15px; font-weight:800;">Ne Kadar Harcayacaksın?</div>
-                <div style="font-size:11px; color:var(--text-muted);">En yüksek nakit iade kombosunu bul</div>
+                <div style="font-size:11px; color:var(--text-muted);">Kotası dolan kampanyalar otomatik elenir</div>
               </div>
               <span class="pill-badge pill-green" style="font-size:16px;">${simulatedSpend} ₺</span>
             </div>
@@ -888,8 +963,9 @@
             </div>
           </div>
 
-          <div style="font-size:14px; font-weight:800; padding: 2px 4px;">
-            Önerilen Kombo & İade Stratejileri (${currentPlans.length})
+          <div style="display:flex; justify-content:space-between; align-items:center; padding: 2px 4px;">
+            <span style="font-size:13.5px; font-weight:800;">Kalan Kotaya Göre Stratejiler (${currentPlans.length})</span>
+            ${fullCount > 0 ? `<span style="font-size:11px; font-weight:800; color:#d97706;">${fullCount} Dolu Kota Elendi</span>` : ''}
           </div>
 
           ${currentPlans.map(p => `
@@ -914,8 +990,8 @@
               </div>
 
               <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px; font-size:11px; color:var(--text-muted); font-weight:600;">
-                <span>Net İade Oranı: %${p.percent}</span>
-                <span style="color:var(--secondary); font-weight:800;">Adımları Gör ›</span>
+                <span>Net İade: %${p.percent} • Kotaları Düşmek İçin Dokun</span>
+                <span style="color:var(--secondary); font-weight:800;">Uygula ›</span>
               </div>
             </div>
           `).join("")}
@@ -924,29 +1000,36 @@
         const list = activeCampaigns.filter(c => !selectedFilterApp || c.appId === selectedFilterApp);
         main.innerHTML = `
           <div style="font-size:14px; font-weight:800; padding: 2px 4px;">
-            ${selectedFilterApp ? 'Seçili Cüzdan Kampanyaları' : 'Tüm Aktif Kampanyalar'} (${list.length})
+            Kampanyalar & Kalan Kotalar (${list.length})
           </div>
-          ${list.map(c => `
-            <div class="white-card clickable" onclick="openCampaignSheet('${c.id}')">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div style="display:flex; gap:6px; align-items:center;">
-                  <span class="pill-badge pill-blue">${c.appName}</span>
-                  ${c.synergyPartner ? `<span class="pill-badge pill-amber">⚡ Kombo</span>` : ''}
+          ${list.map(c => {
+            const rem = remainingQuota(c);
+            const full = isQuotaFull(c);
+            const pct = Math.min(100, Math.round(((c.earned || 0) / c.cap) * 100));
+            return `
+              <div class="white-card clickable" onclick="openCampaignSheet('${c.id}')">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div style="display:flex; gap:6px; align-items:center;">
+                    <span class="pill-badge pill-blue">${c.appName}</span>
+                    ${(c.steps || 0) > 0 ? `<span class="pill-badge pill-amber">${c.steps} İşlem Yapıldı</span>` : ''}
+                  </div>
+                  <span class="pill-badge ${full ? 'pill-muted' : 'pill-green'}">
+                    ${full ? '✓ KOTA DOLDU' : `Kalan: +${rem} ₺`}
+                  </span>
                 </div>
-                <span class="pill-badge pill-green">+${c.cap} ₺</span>
+                <div style="font-size:14px; font-weight:700; margin-top:8px;">${c.title}</div>
+                <div class="progress-bar">
+                  <div class="progress-fill" style="width:${Math.max(pct, c.joined ? 12 : 0)}%; background:${full ? '#d97706' : 'var(--primary)'};"></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:var(--text-muted); font-weight:600;">
+                  <span>Kazanılan: ${c.earned || 0} / ${c.cap} ₺ • Alt Limit: ${c.minSpend} ₺</span>
+                  <button class="btn-outline ${c.joined ? 'joined' : ''}" onclick="toggleJoin('${c.id}', event)">
+                    ${c.joined ? '✓ Katıldım' : 'Katıl'}
+                  </button>
+                </div>
               </div>
-              <div style="font-size:14px; font-weight:700; margin-top:8px;">${c.title}</div>
-              <div class="progress-bar">
-                <div class="progress-fill" style="width:${c.joined ? '100%' : '28%'}; background:${c.joined ? 'var(--primary)' : 'var(--secondary)'};"></div>
-              </div>
-              <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:var(--text-muted); font-weight:600;">
-                <span>Alt Limit: ${c.minSpend} ₺ • Gizli Sekmeyi Gör ›</span>
-                <button class="btn-outline ${c.joined ? 'joined' : ''}" onclick="toggleJoin('${c.id}', event)">
-                  ${c.joined ? '✓ Katıldım' : 'Katıl İşaretle'}
-                </button>
-              </div>
-            </div>
-          `).join("")}
+            `;
+          }).join("")}
         `;
       } else if (currentTab === 2) {
         const tp = campaigns.filter(c => c.appId === "turkcell" || c.appId === "paycell");
@@ -965,7 +1048,9 @@
             <div class="white-card clickable" onclick="openCampaignSheet('${c.id}')">
               <div style="display:flex; justify-content:space-between; align-items:center;">
                 <span class="pill-badge pill-blue">${c.appName}</span>
-                <span class="pill-badge pill-green">+${c.cap} ₺</span>
+                <span class="pill-badge ${isQuotaFull(c) ? 'pill-muted' : 'pill-green'}">
+                  ${isQuotaFull(c) ? '✓ KOTA DOLDU' : `Kalan: +${remainingQuota(c)} ₺`}
+                </span>
               </div>
               <div style="font-size:14px; font-weight:700; margin-top:8px;">${c.title}</div>
               <div style="font-size:11px; color:var(--secondary); font-weight:700; margin-top:6px;">🧭 ${c.whereToFindInApp}</div>
@@ -975,30 +1060,39 @@
       } else {
         main.innerHTML = `
           <div class="white-card">
+            <div style="font-size:15px; font-weight:800;">🔔 Otomatik Harcama Bildirimi Simülatörü</div>
+            <div style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">
+              Kasada ödeme yaptığınızda gelen banka/Paycell bildirimini yakalar, kotayı düşer ve dolan kampanyayı stratejiden eler:
+            </div>
+            <div style="display:flex; gap:8px; margin-top:10px;">
+              <button class="btn-full" style="font-size:11.5px;" onclick="simulateSpendNotification('paycell', 1050, 'MARKET_GIDA', 'MİGROS (Paycell Bildirimi)')">
+                Paycell 1.050₺ Bildirimi
+              </button>
+              <button class="btn-full" style="font-size:11.5px; background:var(--secondary);" onclick="simulateSpendNotification('bonusflas', 1000, 'MARKET_GIDA', 'A101 (BonusFlaş Bildirimi)')">
+                Bonus 1.000₺ Bildirimi
+              </button>
+            </div>
+            ${spendLogs.length > 0 ? `
+              <div style="margin-top:12px; font-size:12px; font-weight:800;">Son Yakalanan Harcama & İade Kayıtları:</div>
+              ${spendLogs.slice(0, 5).map(l => `
+                <div style="display:flex; justify-content:space-between; align-items:center; background:var(--surface-variant); padding:9px 11px; border-radius:10px; margin-top:6px;">
+                  <div>
+                    <div style="font-size:12px; font-weight:700;">${l.appName} • ${l.merchant}</div>
+                    <div style="font-size:10.5px; color:var(--text-muted);">Harcama: ${l.amount} ₺ • Saat: ${l.time}</div>
+                  </div>
+                  <span style="font-size:13px; font-weight:800; color:var(--primary);">+${l.earned} ₺</span>
+                </div>
+              `).join("")}
+            ` : ''}
+          </div>
+          <div class="white-card">
             <div style="font-size:15px; font-weight:800;">📥 Yeni Kampanya Metni / SMS Ekle</div>
             <input id="newCamTxt" type="text" placeholder="Örn: Paycell ile markette 750 TL harcamaya 150 TL iade!"
                    style="width:100%; margin-top:10px; padding:10px; border-radius:12px; border:1px solid var(--border); background:var(--surface-variant); font-size:12px;" />
-            <button class="btn-full" style="margin-top:10px;" onclick="addQuickCam()">Strateji Motoruna Ekle</button>
-          </div>
-          <div class="white-card">
-            <div style="font-size:15px; font-weight:800; margin-bottom:8px;">📱 Cüzdanımdaki Uygulamalar</div>
-            ${apps.map(a => `
-              <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--surface-variant);">
-                <span style="font-size:13px; font-weight:700;">${a.name}</span>
-                <button class="btn-outline ${a.enabled ? 'joined' : ''}" onclick="a_toggle('${a.id}')">
-                  ${a.enabled ? 'Aktif' : 'Pasif'}
-                </button>
-              </div>
-            `).join("")}
+            <button class="btn-full" style="margin-top:10px;" onclick="addQuickCam()">Kalıcı Hafızaya & Stratejiye Ekle</button>
           </div>
         `;
       }
-    }
-
-    function a_toggle(id) {
-      const a = apps.find(x => x.id === id);
-      if (a) a.enabled = !a.enabled;
-      render();
     }
 
     function addQuickCam() {
@@ -1013,12 +1107,14 @@
         whereToFindInApp: "Paycell > Fırsatlar > Bana Özel",
         category: selectedCategory,
         minSpend: 750, rate: 0, flat: 150, cap: 150, requiresJoin: true,
-        canStackAsBank: false, joined: true
+        canStackAsBank: false, joined: true, steps: 0, earned: 0
       });
-      showToast("✅ Yeni kampanya çözümlendi ve Cüzdana eklendi!");
+      savePersistedState();
+      showToast("✅ Yeni kampanya kalıcı hafızaya eklendi!");
       render();
     }
 
+    loadPersistedState();
     render();
   </script>
 </body>

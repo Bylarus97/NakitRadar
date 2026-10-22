@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nakitradar.app.data.InstalledAppScanner
 import com.nakitradar.app.model.*
+import com.nakitradar.app.service.CampaignNotificationListener
+import com.nakitradar.app.service.CapturedSpendNotification
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -40,9 +42,13 @@ fun NakitRadarApp(
 ) {
     val state by viewModel.uiState.collectAsState()
     var selectedTab by remember { mutableIntStateOf(0) }
-    var activeBottomSheetCampaign by remember { mutableStateOf<Campaign?>(null) }
+    var activeBottomSheetCampaignId by remember { mutableStateOf<String?>(null) }
     var activeBottomSheetPlan by remember { mutableStateOf<StrategyPlan?>(null) }
     val context = LocalContext.current
+
+    val activeBottomSheetCampaign = activeBottomSheetCampaignId?.let { id ->
+        state.campaigns.find { it.id == id }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -77,7 +83,7 @@ fun NakitRadarApp(
                         selected = selectedTab == 3,
                         onClick = { selectedTab = 3 },
                         icon = { Icon(Icons.Default.AutoAwesome, contentDescription = null) },
-                        label = { Text("AI & Ayarlar", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }
+                        label = { Text("Takip & AI", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }
                     )
                 }
             }
@@ -93,10 +99,21 @@ fun NakitRadarApp(
             LightFintechHeader(
                 state = state,
                 onScanApps = { viewModel.scanDeviceApps(scanner) },
-                onRefreshWeb = { viewModel.refreshWebCampaigns() }
+                onSimulateSpendNotification = {
+                    CampaignNotificationListener.emitSpendEvent(
+                        CapturedSpendNotification(
+                            id = "sim_spend_${System.currentTimeMillis()}",
+                            appId = "paycell",
+                            appName = "Paycell",
+                            merchantTitle = "MİGROS (Kasada Ödeme Bildirimi)",
+                            spendAmount = 1050.0,
+                            category = SpendCategory.MARKET_GIDA
+                        )
+                    )
+                }
             )
 
-            // Yatay Kaydırılabilir Gerçek Cüzdan / Kart Karuseli (Apple Wallet / Juzdan Stili)
+            // Yatay Kaydırılabilir Gerçek Cüzdan / Kart Karuseli (Kalan Kota + Kazanılan İade)
             WalletCardCarousel(
                 state = state,
                 onSelectCard = { appId ->
@@ -126,8 +143,8 @@ fun NakitRadarApp(
                         Text(
                             text = msg,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
@@ -137,19 +154,16 @@ fun NakitRadarApp(
                 0 -> WalletComboHomeScreen(
                     state = state,
                     onUpdateSimulation = viewModel::updateSimulationParameters,
-                    onInspectPlan = { activeBottomSheetPlan = it },
-                    onOpenApp = { appId ->
-                        state.apps.find { it.id == appId }?.let { scanner.openAppOrCampaignPage(it) }
-                    }
+                    onInspectPlan = { activeBottomSheetPlan = it }
                 )
                 1 -> CleanCampaignFeedScreen(
                     state = state,
-                    onInspectCampaign = { activeBottomSheetCampaign = it },
+                    onInspectCampaign = { activeBottomSheetCampaignId = it.id },
                     onToggleJoin = viewModel::toggleJoinCampaign
                 )
                 2 -> CleanTurkcellPaycellScreen(
                     state = state,
-                    onInspectCampaign = { activeBottomSheetCampaign = it },
+                    onInspectCampaign = { activeBottomSheetCampaignId = it.id },
                     onToggleJoin = viewModel::toggleJoinCampaign
                 )
                 3 -> CleanAiAndAppsScreen(
@@ -157,13 +171,21 @@ fun NakitRadarApp(
                     context = context,
                     onToggleApp = viewModel::toggleAppSelection,
                     onImportCampaign = viewModel::importCampaignFromText,
-                    onUpdateApiKey = viewModel::updateGeminiApiKey,
+                    onSimulateSpend = { appId, amount, cat, merchant ->
+                        viewModel.recordSpendAndDeductQuota(
+                            appId = appId,
+                            spendAmount = amount,
+                            category = cat,
+                            merchantTitle = merchant,
+                            isFromNotification = true
+                        )
+                    },
                     onAskAi = viewModel::askAiAdvisor
                 )
             }
         }
 
-        // Strateji Detay Bottom Sheet (Tıklayınca Açılan Temiz Pencere)
+        // Strateji Detay Bottom Sheet
         activeBottomSheetPlan?.let { plan ->
             ModalBottomSheet(
                 onDismissRequest = { activeBottomSheetPlan = null },
@@ -174,23 +196,43 @@ fun NakitRadarApp(
                     onOpenApp = { appId ->
                         state.apps.find { it.id == appId }?.let { scanner.openAppOrCampaignPage(it) }
                     },
-                    onClose = { activeBottomSheetPlan = null }
+                    onApplyStrategySpend = {
+                        plan.involvedCampaigns.forEach { cam ->
+                            viewModel.recordSpendAndDeductQuota(
+                                appId = cam.appId,
+                                spendAmount = cam.minSpendAmount,
+                                category = cam.category,
+                                merchantTitle = "${plan.title} Uygulandı",
+                                targetCampaignId = cam.id,
+                                isFromNotification = false
+                            )
+                        }
+                        activeBottomSheetPlan = null
+                    }
                 )
             }
         }
 
-        // Kampanya Detay & Gizli Sekme Yolu Bottom Sheet
+        // Kampanya Detay, Kota & Adım Yönetimi Bottom Sheet
         activeBottomSheetCampaign?.let { cam ->
             ModalBottomSheet(
-                onDismissRequest = { activeBottomSheetCampaign = null },
+                onDismissRequest = { activeBottomSheetCampaignId = null },
                 containerColor = MaterialTheme.colorScheme.surface
             ) {
                 CampaignDetailSheetContent(
                     campaign = cam,
-                    onToggleJoin = {
-                        viewModel.toggleJoinCampaign(cam.id)
-                        activeBottomSheetCampaign = cam.copy(isJoined = !cam.isJoined)
+                    onToggleJoin = { viewModel.toggleJoinCampaign(cam.id) },
+                    onRecordSpendStep = {
+                        viewModel.recordSpendAndDeductQuota(
+                            appId = cam.appId,
+                            spendAmount = cam.minSpendAmount,
+                            category = cam.category,
+                            merchantTitle = "${cam.appName} Harcaması",
+                            targetCampaignId = cam.id,
+                            isFromNotification = false
+                        )
                     },
+                    onResetQuota = { viewModel.resetCampaignQuota(cam.id) },
                     onOpenApp = {
                         state.apps.find { it.id == cam.appId }?.let { scanner.openAppOrCampaignPage(it) }
                     }
@@ -204,7 +246,7 @@ fun NakitRadarApp(
 private fun LightFintechHeader(
     state: NakitRadarUiState,
     onScanApps: () -> Unit,
-    onRefreshWeb: () -> Unit
+    onSimulateSpendNotification: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -239,14 +281,24 @@ private fun LightFintechHeader(
             }
             Spacer(Modifier.height(2.dp))
             Text(
-                text = "Kazanılabilir Havuz: ${state.totalMonthlyCashbackPotential.roundToInt()} ₺ • Katıldığım: ${state.joinedCampaignsCashbackTotal.roundToInt()} ₺",
+                text = "Kalan Havuz: ${state.totalRemainingCashbackPool.roundToInt()} ₺ • Kazanılan: +${state.totalEarnedCashbackSoFar.roundToInt()} ₺",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.SemiBold
             )
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilledIconButton(
+                onClick = onSimulateSpendNotification,
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.primary
+                ),
+                modifier = Modifier.size(38.dp)
+            ) {
+                Icon(Icons.Default.NotificationsActive, contentDescription = "Harcama Bildirimi Simüle Et", modifier = Modifier.size(18.dp))
+            }
             FilledIconButton(
                 onClick = onScanApps,
                 colors = IconButtonDefaults.filledIconButtonColors(
@@ -256,17 +308,6 @@ private fun LightFintechHeader(
                 modifier = Modifier.size(38.dp)
             ) {
                 Icon(Icons.Default.PhonelinkSetup, contentDescription = "Cihazı Tara", modifier = Modifier.size(18.dp))
-            }
-            FilledIconButton(
-                onClick = onRefreshWeb,
-                enabled = !state.isScanningWeb,
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.primary
-                ),
-                modifier = Modifier.size(38.dp)
-            ) {
-                Icon(Icons.Default.Refresh, contentDescription = "Güncelle", modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -288,8 +329,8 @@ private fun WalletCardCarousel(
             val isAllSelected = state.selectedFilterAppId == null
             Box(
                 modifier = Modifier
-                    .width(175.dp)
-                    .height(112.dp)
+                    .width(180.dp)
+                    .height(114.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(
                         Brush.linearGradient(
@@ -328,16 +369,16 @@ private fun WalletCardCarousel(
                     }
                     Column {
                         Text(
-                            text = "${state.totalMonthlyCashbackPotential.roundToInt()} ₺",
+                            text = "${state.totalRemainingCashbackPool.roundToInt()} ₺ Kalan",
                             color = Color.White,
-                            fontSize = 22.sp,
+                            fontSize = 19.sp,
                             fontWeight = FontWeight.ExtraBold
                         )
                         Text(
-                            text = "${activeApps.size} Uygulama • ${state.campaigns.count { it.appId in state.activeAppIds }} Fırsat",
+                            text = "Kazanılan: +${state.totalEarnedCashbackSoFar.roundToInt()} ₺",
                             color = Color(0xFF34D399),
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
@@ -348,13 +389,14 @@ private fun WalletCardCarousel(
         items(activeApps, key = { it.id }) { app ->
             val isSelected = state.selectedFilterAppId == app.id
             val appCampaigns = state.campaigns.filter { it.appId == app.id }
-            val appTotalCashback = appCampaigns.sumOf { it.maxCashbackCap }.roundToInt()
+            val appRemainingQuota = appCampaigns.sumOf { it.remainingQuota }.roundToInt()
+            val appEarned = appCampaigns.sumOf { it.earnedSoFar }.roundToInt()
             val gradientColors = getCardGradientForApp(app.id)
 
             Box(
                 modifier = Modifier
-                    .width(195.dp)
-                    .height(112.dp)
+                    .width(198.dp)
+                    .height(114.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(Brush.linearGradient(gradientColors))
                     .border(
@@ -388,11 +430,11 @@ private fun WalletCardCarousel(
                                 modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                             )
                         }
-                        Icon(
-                            Icons.Default.Contactless,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.8f),
-                            modifier = Modifier.size(18.dp)
+                        Text(
+                            text = if (appEarned > 0) "Kazanılan: +$appEarned ₺" else "${appCampaigns.size} Fırsat",
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
 
@@ -412,12 +454,12 @@ private fun WalletCardCarousel(
                             verticalAlignment = Alignment.Bottom
                         ) {
                             Text(
-                                text = "${appCampaigns.size} Aktif Kampanya",
+                                text = "Kalan Kota",
                                 color = Color.White.copy(alpha = 0.85f),
                                 fontSize = 11.sp
                             )
                             Text(
-                                text = "+$appTotalCashback ₺",
+                                text = "+$appRemainingQuota ₺",
                                 color = Color.White,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.ExtraBold
@@ -447,15 +489,13 @@ private fun getCardGradientForApp(appId: String): List<Color> = when (appId) {
 private fun WalletComboHomeScreen(
     state: NakitRadarUiState,
     onUpdateSimulation: (Double, SpendCategory) -> Unit,
-    onInspectPlan: (StrategyPlan) -> Unit,
-    onOpenApp: (String) -> Unit
+    onInspectPlan: (StrategyPlan) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Kompakt & Ferah "Bugün Ne Harcayacaksın?" Hesaplayıcı Kartı
         item {
             ElevatedCard(
                 colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -476,8 +516,8 @@ private fun WalletComboHomeScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "En yüksek nakit iade kombosunu anında bul",
-                                fontSize = 12.sp,
+                                text = "Kotası dolan kampanyalar otomatik elenir",
+                                fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -497,7 +537,6 @@ private fun WalletComboHomeScreen(
 
                     Spacer(Modifier.height(10.dp))
 
-                    // Kategori Seçim Çipleri
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -543,17 +582,17 @@ private fun WalletComboHomeScreen(
                                     .weight(1f)
                                     .clickable { onUpdateSimulation(preset, state.selectedCategory) }
                             ) {
-                               Box(
-                                   contentAlignment = Alignment.Center,
-                                   modifier = Modifier.padding(vertical = 6.dp)
-                               ) {
-                                   Text(
-                                       text = "${preset.toInt()}₺",
-                                       fontSize = 12.sp,
-                                       fontWeight = FontWeight.Bold,
-                                       color = if (isPreset) Color.White else MaterialTheme.colorScheme.onSurface
-                                   )
-                               }
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.padding(vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = "${preset.toInt()}₺",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isPreset) Color.White else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                             }
                         }
                     }
@@ -562,22 +601,32 @@ private fun WalletComboHomeScreen(
         }
 
         item {
-            Text(
-                text = "Önerilen Kombo & İade Stratejileri (${state.generatedStrategies.size})",
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(top = 4.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Kalan Kotaya Göre En Karlı Stratejiler (${state.generatedStrategies.size})",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                if (state.fullQuotaCampaignCount > 0) {
+                    Text(
+                        text = "${state.fullQuotaCampaignCount} Dolu Kota Elendi",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
+                }
+            }
         }
 
         items(state.generatedStrategies, key = { it.id }) { plan ->
             VisualStrategyPipelineCard(
                 plan = plan,
-                onClick = { onInspectPlan(plan) },
-                onQuickOpenFirstApp = {
-                    plan.steps.firstOrNull()?.let { onOpenApp(it.appId) }
-                }
+                onClick = { onInspectPlan(plan) }
             )
         }
     }
@@ -586,8 +635,7 @@ private fun WalletComboHomeScreen(
 @Composable
 private fun VisualStrategyPipelineCard(
     plan: StrategyPlan,
-    onClick: () -> Unit,
-    onQuickOpenFirstApp: () -> Unit
+    onClick: () -> Unit
 ) {
     ElevatedCard(
         colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -598,7 +646,6 @@ private fun VisualStrategyPipelineCard(
             .clickable { onClick() }
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Üst Rozet Satırı
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -642,7 +689,6 @@ private fun VisualStrategyPipelineCard(
 
             Spacer(Modifier.height(12.dp))
 
-            // Uzun yazılar yerine Görsel Akış Şeması (Visual Flow Pipeline)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -710,15 +756,12 @@ private fun VisualStrategyPipelineCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Net İade Oranı: %${plan.effectiveReturnPercent.roundToInt()} • Detaylar için dokun",
+                    text = "Net İade: %${plan.effectiveReturnPercent.roundToInt()} • Adımları & Kotayı Gör",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium
                 )
-                TextButton(onClick = onClick) {
-                    Text("Adımları Gör", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Icon(Icons.Default.ChevronRight, contentDescription = null, modifier = Modifier.size(16.dp))
-                }
+                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
             }
         }
     }
@@ -738,7 +781,7 @@ private fun CleanCampaignFeedScreen(
         item {
             Text(
                 text = if (state.selectedFilterAppId == null) {
-                    "Tüm Aktif Kampanyalar (${state.visibleCampaigns.size})"
+                    "Tüm Kampanyalar & Kalan Kotalar (${state.visibleCampaigns.size})"
                 } else {
                     "Seçili Cüzdan Kampanyaları (${state.visibleCampaigns.size})"
                 },
@@ -794,13 +837,13 @@ private fun MinimalCampaignCard(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
-                    if (campaign.synergyPartnerAppId != null) {
+                    if (campaign.completedSteps > 0) {
                         Surface(
                             color = MaterialTheme.colorScheme.tertiaryContainer,
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(
-                                text = "⚡ Kombo",
+                                text = "${campaign.completedSteps} İşlem Yapıldı",
                                 color = MaterialTheme.colorScheme.onTertiaryContainer,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
@@ -811,14 +854,14 @@ private fun MinimalCampaignCard(
                 }
 
                 Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
+                    color = if (campaign.isQuotaFull) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primaryContainer,
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Text(
-                        text = "+${campaign.maxCashbackCap.roundToInt()} ₺",
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        text = if (campaign.isQuotaFull) "✓ KOTA DOLDU" else "Kalan: +${campaign.remainingQuota.roundToInt()} ₺",
+                        color = if (campaign.isQuotaFull) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimaryContainer,
                         fontWeight = FontWeight.ExtraBold,
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }
@@ -837,14 +880,14 @@ private fun MinimalCampaignCard(
 
             Spacer(Modifier.height(8.dp))
 
-            // İlerleme / Alt Limit Çubuğu
+            // Kota Doluluk İlerleme Çubuğu
             LinearProgressIndicator(
-                progress = { if (campaign.isJoined) 1f else 0.25f },
+                progress = { campaign.quotaProgressFraction.coerceAtLeast(if (campaign.isJoined) 0.12f else 0.0f) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp)),
-                color = if (campaign.isJoined) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+                    .height(7.dp)
+                    .clip(RoundedCornerShape(4.dp)),
+                color = if (campaign.isQuotaFull) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
             )
 
@@ -856,10 +899,10 @@ private fun MinimalCampaignCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Alt Limit: ${campaign.minSpendAmount.roundToInt()} ₺ • Gizli Sekmeyi Gör",
+                    text = "Kazanılan: ${campaign.earnedSoFar.roundToInt()} / ${campaign.maxCashbackCap.roundToInt()} ₺ • Alt Limit: ${campaign.minSpendAmount.roundToInt()} ₺",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.SemiBold
                 )
 
                 FilterChip(
@@ -867,7 +910,7 @@ private fun MinimalCampaignCard(
                     onClick = onToggleJoin,
                     label = {
                         Text(
-                            text = if (campaign.isJoined) "✓ Katıldım" else "Katıl İşaretle",
+                            text = if (campaign.isJoined) "✓ Katıldım" else "Katıl",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -954,11 +997,10 @@ private fun CleanAiAndAppsScreen(
     context: Context,
     onToggleApp: (String) -> Unit,
     onImportCampaign: (String, String) -> Unit,
-    onUpdateApiKey: (String) -> Unit,
+    onSimulateSpend: (String, Double, SpendCategory, String) -> Unit,
     onAskAi: (String) -> Unit
 ) {
     var rawCampaignText by remember { mutableStateOf("") }
-    var selectedImportAppId by remember { mutableStateOf("paycell") }
     var aiQuestion by remember {
         mutableStateOf("Turkcell faturam 600 TL, bu ay 2.250 TL market harcamam var. Paycell ve bankalarla nasıl maksimum nakit iade alırım?")
     }
@@ -968,6 +1010,98 @@ private fun CleanAiAndAppsScreen(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // 1. Otomatik Harcama Bildirimi Simülatörü & Canlı Harcama Kayıtları
+        item {
+            ElevatedCard(
+                colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "🔔 Otomatik Harcama Bildirimi & Kota Takibi",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                    Text(
+                        text = "Kasada ödeme yaptığınızda gelen banka/Paycell bildirimini otomatik yakalar, kampanya kotasını düşer ve dolan kampanyayı stratejiden eler.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilledTonalButton(
+                            onClick = {
+                                onSimulateSpend("paycell", 1050.0, SpendCategory.MARKET_GIDA, "MİGROS (Paycell Bildirimi)")
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Paycell 1.050₺ Test", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        FilledTonalButton(
+                            onClick = {
+                                onSimulateSpend("bonusflas", 1000.0, SpendCategory.MARKET_GIDA, "A101 (BonusFlaş Bildirimi)")
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Bonus 1.000₺ Test", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    if (state.spendLogs.isNotEmpty()) {
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            text = "Son Yakalanan Harcama & İade Geçmişi:",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        state.spendLogs.take(5).forEach { log ->
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 3.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "${log.appName} • ${log.merchantTitle}",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp
+                                        )
+                                        Text(
+                                            text = "Harcama: ${log.spendAmount.roundToInt()} ₺ • Saat: ${log.timestampLabel}",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Text(
+                                        text = "+${log.cashbackEarned.roundToInt()} ₺",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Yeni Kampanya Metni / SMS Ekle
         item {
             ElevatedCard(
                 colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -986,19 +1120,20 @@ private fun CleanAiAndAppsScreen(
                     Spacer(Modifier.height(8.dp))
                     Button(
                         onClick = {
-                            onImportCampaign(rawCampaignText, selectedImportAppId)
+                            onImportCampaign(rawCampaignText, "paycell")
                             rawCampaignText = ""
                         },
                         enabled = rawCampaignText.isNotBlank(),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Strateji Motoruna Ekle")
+                        Text("Kalıcı Hafızaya & Strateji Motoruna Ekle")
                     }
                 }
             }
         }
 
+        // 3. AI Strateji Danışmanı
         item {
             ElevatedCard(
                 colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -1040,6 +1175,7 @@ private fun CleanAiAndAppsScreen(
             }
         }
 
+        // 4. Cüzdanımdaki Uygulamalar
         item {
             ElevatedCard(
                 colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -1060,7 +1196,7 @@ private fun CleanAiAndAppsScreen(
                                 context.startActivity(intent)
                             }
                         ) {
-                            Text("Bildirim İzni", fontSize = 12.sp)
+                            Text("Bildirim İzni Aç", fontSize = 12.sp)
                         }
                     }
                     state.apps.forEach { app ->
@@ -1088,7 +1224,7 @@ private fun CleanAiAndAppsScreen(
 private fun StrategyDetailSheetContent(
     plan: StrategyPlan,
     onOpenApp: (String) -> Unit,
-    onClose: () -> Unit
+    onApplyStrategySpend: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -1144,7 +1280,7 @@ private fun StrategyDetailSheetContent(
                         color = MaterialTheme.colorScheme.secondary
                     )
                     Spacer(Modifier.height(8.dp))
-                    Button(
+                    OutlinedButton(
                         onClick = { onOpenApp(step.appId) },
                         shape = RoundedCornerShape(10.dp)
                     ) {
@@ -1152,6 +1288,15 @@ private fun StrategyDetailSheetContent(
                     }
                 }
             }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        Button(
+            onClick = onApplyStrategySpend,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text("✓ Bu Stratejiyle Ödedim (Kotaları Düş & Kaydet)")
         }
         Spacer(Modifier.height(20.dp))
     }
@@ -1161,6 +1306,8 @@ private fun StrategyDetailSheetContent(
 private fun CampaignDetailSheetContent(
     campaign: Campaign,
     onToggleJoin: () -> Unit,
+    onRecordSpendStep: () -> Unit,
+    onResetQuota: () -> Unit,
     onOpenApp: () -> Unit
 ) {
     Column(
@@ -1168,16 +1315,28 @@ private fun CampaignDetailSheetContent(
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 12.dp)
     ) {
-        Surface(
-            color = MaterialTheme.colorScheme.primaryContainer,
-            shape = RoundedCornerShape(10.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Text(
+                    text = "${campaign.appName} • Kalan Kota: ${campaign.remainingQuota.roundToInt()} ₺",
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                )
+            }
             Text(
-                text = "${campaign.appName} • Maks. ${campaign.maxCashbackCap.roundToInt()} ₺ Nakit İade",
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                fontWeight = FontWeight.Bold,
+                text = "Kazanılan: ${campaign.earnedSoFar.roundToInt()} / ${campaign.maxCashbackCap.roundToInt()} ₺",
                 fontSize = 12.sp,
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
             )
         }
         Spacer(Modifier.height(8.dp))
@@ -1215,23 +1374,35 @@ private fun CampaignDetailSheetContent(
             }
         }
 
-        campaign.synergyExplanation?.let { syn ->
-            Spacer(Modifier.height(10.dp))
-            Surface(
-                color = MaterialTheme.colorScheme.tertiaryContainer,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
+        Spacer(Modifier.height(12.dp))
+
+        // Harcama İşle / Kota Güncelleme Butonları
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = onRecordSpendStep,
+                enabled = !campaign.isQuotaFull,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
-                    text = "⚡ Kombo İpucu: $syn",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                    modifier = Modifier.padding(12.dp)
+                    if (campaign.isQuotaFull) "✓ Kota Tamamen Doldu"
+                    else "💳 ${campaign.minSpendAmount.roundToInt()} ₺ Harcama İşle (+1 Adım)"
                 )
+            }
+            if (campaign.earnedSoFar > 0.0) {
+                OutlinedButton(
+                    onClick = onResetQuota,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Sıfırla")
+                }
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1243,7 +1414,7 @@ private fun CampaignDetailSheetContent(
             ) {
                 Text(if (campaign.isJoined) "✓ Katıldım" else "Katıldım İşaretle")
             }
-            Button(
+            OutlinedButton(
                 onClick = onOpenApp,
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(12.dp)

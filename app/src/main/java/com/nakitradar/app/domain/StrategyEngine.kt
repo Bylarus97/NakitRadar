@@ -10,10 +10,10 @@ import com.nakitradar.app.model.StrategyType
 import kotlin.math.roundToInt
 
 /**
- * NakitRadar Strateji Motoru:
- * Telefonda yüklü olan uygulamalar arasındaki görünmeyen sinerjileri (Turkcell + Paycell + Banka),
- * Cüzdan Yükleme / Kart Kombosu (Stacking) fırsatlarını ve Harcama Bölme (Split Payment) taktiklerini
- * hesaplayarak maksimum nakit iade (cashback) planı üretir.
+ * NakitRadar Strateji Motoru (v2 - Kalan Kota & Adım Duyarlı):
+ * - Kotası dolan (isQuotaFull == true) kampanyaları otomatik olarak eler.
+ * - Kısmen kullanılmış kampanyalarda sadece kalan kotayı (remainingQuota) hesaba katar.
+ * - Turkcell + Paycell + Banka Sinerjisi, Çifte Kazanç Kombosu ve Harcama Bölme stratejileri üretir.
  */
 class StrategyEngine {
 
@@ -28,29 +28,38 @@ class StrategyEngine {
         val enabledAppIds = enabledApps.filter { it.isSelectedByUser }.map { it.id }.toSet()
         val appMap = enabledApps.associateBy { it.id }
 
+        // Sadece aktif uygulamalara ait, ilgili kategorideki ve KOTASI DOLMAMIŞ kampanyaları al
         val relevantCampaigns = allCampaigns.filter {
-            it.appId in enabledAppIds && (it.category == category || it.category == SpendCategory.GENEL)
+            it.appId in enabledAppIds &&
+                !it.isQuotaFull &&
+                (it.category == category || it.category == SpendCategory.GENEL)
+        }
+
+        val fullQuotaExcludedCount = allCampaigns.count {
+            it.appId in enabledAppIds &&
+                it.isQuotaFull &&
+                (it.category == category || it.category == SpendCategory.GENEL)
         }
 
         val plans = mutableListOf<StrategyPlan>()
 
         // 1. EKOSİSTEM SİNERJİ STRATEJİSİ (Örn: Turkcell + Paycell Çifte İade Zinciri)
-        buildSynergyStrategy(spendAmount, relevantCampaigns, allCampaigns, enabledAppIds)?.let {
+        buildSynergyStrategy(spendAmount, relevantCampaigns, allCampaigns, enabledAppIds, fullQuotaExcludedCount)?.let {
             plans.add(it)
         }
 
         // 2. ÇİFTE KAZANÇ KOMBOSU (STACKING: Banka Kartı Kampanyası + Paycell/Nays Cüzdan İadesi)
-        buildComboStackingStrategy(spendAmount, category, relevantCampaigns, appMap)?.let {
+        buildComboStackingStrategy(spendAmount, category, relevantCampaigns, appMap, fullQuotaExcludedCount)?.let {
             plans.add(it)
         }
 
-        // 3. HARCAMA BÖLME (SPLIT PAYMENT: Yüksek tutarlı harcamayı 2-3 uygulamaya bölerek tavan sınırını aşma)
-        buildSplitSpendStrategy(spendAmount, relevantCampaigns)?.let {
+        // 3. HARCAMA BÖLME (SPLIT PAYMENT: Yüksek tutarlı harcamayı 2-3 uygulamaya bölerek kalan kotaları toplama)
+        buildSplitSpendStrategy(spendAmount, relevantCampaigns, fullQuotaExcludedCount)?.let {
             plans.add(it)
         }
 
-        // 4. TEK İŞLEMDE EN İYİ KAMPANYA (Harcamayı bölmek istemeyenler için en karlı tek uygulama)
-        buildSingleBestStrategy(spendAmount, relevantCampaigns)?.let {
+        // 4. TEK İŞLEMDE EN İYİ KAMPANYA
+        buildSingleBestStrategy(spendAmount, relevantCampaigns, fullQuotaExcludedCount)?.let {
             plans.add(it)
         }
 
@@ -61,21 +70,30 @@ class StrategyEngine {
         spendAmount: Double,
         relevantCampaigns: List<Campaign>,
         allCampaigns: List<Campaign>,
-        enabledAppIds: Set<String>
+        enabledAppIds: Set<String>,
+        excludedCount: Int
     ): StrategyPlan? {
         val synergyCam = relevantCampaigns.firstOrNull { cam ->
             cam.synergyPartnerAppId != null &&
                 cam.synergyPartnerAppId in enabledAppIds &&
-                spendAmount >= cam.minSpendAmount
+                spendAmount >= cam.minSpendAmount &&
+                cam.calculateCashbackForSpend(spendAmount) > 0.0
         } ?: return null
 
         val partnerAppId = synergyCam.synergyPartnerAppId ?: return null
         val partnerCam = allCampaigns.firstOrNull {
-            it.appId == partnerAppId && it.category == synergyCam.category
+            it.appId == partnerAppId && it.category == synergyCam.category && !it.isQuotaFull
         }
 
         val mainCashback = synergyCam.calculateCashbackForSpend(spendAmount)
-        val bonusCashback = synergyCam.synergyBonusAmount
+        val bonusCashback = if (partnerCam != null) {
+            synergyCam.synergyBonusAmount.coerceAtMost(partnerCam.remainingQuota)
+        } else {
+            synergyCam.synergyBonusAmount
+        }
+
+        if (bonusCashback <= 0.0) return null
+
         val totalCashback = mainCashback + bonusCashback
         val returnRate = ((totalCashback / spendAmount) * 100.0).coerceAtMost(100.0)
 
@@ -86,7 +104,7 @@ class StrategyEngine {
                     stepNumber = 1,
                     appId = partnerCam.appId,
                     appName = partnerCam.appName,
-                    actionTitle = "${partnerCam.appName} Kampanyasına Katıl",
+                    actionTitle = "${partnerCam.appName} Kampanyasına Katıl (Kalan Kota: ${partnerCam.remainingQuota.roundToInt()} ₺)",
                     actionDetail = "Ödeme yapmadan önce ${partnerCam.appName} uygulamasını açıp '${partnerCam.title}' kampanyasında 'Hemen Katıl' butonuna basın.",
                     inAppNavigationPath = partnerCam.whereToFindInApp,
                     earnedCashback = bonusCashback
@@ -105,20 +123,24 @@ class StrategyEngine {
             )
         )
 
+        val notes = mutableListOf(
+            "Ödemeyi yapmadan ÖNCE her iki uygulamada da 'Hemen Katıl' butonuna basılmış olmalıdır."
+        )
+        if (excludedCount > 0) {
+            notes.add("Bu kategoride kotası dolmuş $excludedCount kampanya otomatik olarak elendi.")
+        }
+
         return StrategyPlan(
             id = "plan_synergy_${synergyCam.id}",
             strategyType = StrategyType.ECOSYSTEM_SYNERGY,
             title = "${synergyCam.appName} + ${partnerCam?.appName ?: "Paycell"} Sinerji Zinciri",
-            subtitle = "İki kardeş uygulamanın kampanyasını aynı harcamada tetikleyerek tek işlemde çifte nakit iade alın!",
+            subtitle = "İki kardeş uygulamanın kalan kotasını aynı harcamada birleştirerek çifte nakit iade alın!",
             targetSpendAmount = spendAmount,
             totalCashbackEarned = totalCashback,
             effectiveReturnPercent = returnRate,
             steps = steps,
             involvedCampaigns = listOfNotNull(synergyCam, partnerCam),
-            warningNotes = listOf(
-                "Ödemeyi yapmadan ÖNCE her iki uygulamada da 'Hemen Katıl' butonuna basılmış olmalıdır.",
-                "Paycell Hediye Dünyası'ndaki puanlarınızı da nakit iade / fatura indirimine çevirmeyi unutmayın."
-            )
+            warningNotes = notes
         )
     }
 
@@ -126,16 +148,19 @@ class StrategyEngine {
         spendAmount: Double,
         category: SpendCategory,
         relevantCampaigns: List<Campaign>,
-        appMap: Map<String, InstalledAppInfo>
+        appMap: Map<String, InstalledAppInfo>,
+        excludedCount: Int
     ): StrategyPlan? {
         val walletCampaigns = relevantCampaigns.filter { cam ->
             appMap[cam.appId]?.ecosystemType == AppEcosystemType.PREPAID_WALLET &&
-                spendAmount >= cam.minSpendAmount
+                spendAmount >= cam.minSpendAmount &&
+                cam.calculateCashbackForSpend(spendAmount) > 0.0
         }
         val bankCampaigns = relevantCampaigns.filter { cam ->
             appMap[cam.appId]?.ecosystemType == AppEcosystemType.BANK_CAMPAIGN_APP &&
                 cam.canStackAsWalletTopUp &&
-                spendAmount >= cam.minSpendAmount
+                spendAmount >= cam.minSpendAmount &&
+                cam.calculateCashbackForSpend(spendAmount) > 0.0
         }
 
         val bestWalletCam = walletCampaigns.maxByOrNull { it.calculateCashbackForSpend(spendAmount) } ?: return null
@@ -146,11 +171,18 @@ class StrategyEngine {
         val totalReward = walletReward + bankReward
         val returnRate = ((totalReward / spendAmount) * 100.0).coerceAtMost(100.0)
 
+        val notes = mutableListOf(
+            "Cüzdan içine tanımlı kredi kartıyla QR/Online ödeme yaparak her iki kampanyayı aynı anda tetikleyin."
+        )
+        if (excludedCount > 0) {
+            notes.add("Kotası dolmuş $excludedCount kampanya bu kombodan otomatik elendi.")
+        }
+
         return StrategyPlan(
             id = "plan_combo_${bestBankCam.id}_${bestWalletCam.id}",
             strategyType = StrategyType.COMBO_STACKING,
             title = "${bestBankCam.appName} + ${bestWalletCam.appName} Çifte İade Kombosu",
-            subtitle = "Banka kartı kampanyası ile ön ödemeli nakit iade cüzdanını birleştirerek 2 ayrı kurumdan iade kazanın.",
+            subtitle = "Banka kartı kalan kotası (${bestBankCam.remainingQuota.roundToInt()} ₺) ile cüzdan kalan kotasını (${bestWalletCam.remainingQuota.roundToInt()} ₺) birleştirin.",
             targetSpendAmount = spendAmount,
             totalCashbackEarned = totalReward,
             effectiveReturnPercent = returnRate,
@@ -160,7 +192,7 @@ class StrategyEngine {
                     appId = bestBankCam.appId,
                     appName = bestBankCam.appName,
                     actionTitle = "1. Adım: ${bestBankCam.appName} Kampanyasına Katıl",
-                    actionDetail = "${bestBankCam.appName} uygulamasında '${bestBankCam.title}' kampanyasına katılın.",
+                    actionDetail = "${bestBankCam.appName} uygulamasında '${bestBankCam.title}' kampanyasına katılın (Kalan Kota: ${bestBankCam.remainingQuota.roundToInt()} ₺).",
                     inAppNavigationPath = bestBankCam.whereToFindInApp,
                     earnedCashback = bankReward
                 ),
@@ -168,26 +200,24 @@ class StrategyEngine {
                     stepNumber = 2,
                     appId = bestWalletCam.appId,
                     appName = bestWalletCam.appName,
-                    actionTitle = "2. Adım: ${bestWalletCam.appName} Kampanyasına Katıl & Ödemeyi Yap",
-                    actionDetail = "${bestWalletCam.appName} içinde kampanyaya katılın, banka kartınızla ${bestWalletCam.appName} üzerinden/bakiyesiyle ${spendAmount.roundToInt()} TL ${category.displayName} harcamasını gerçekleştirin.",
+                    actionTitle = "2. Adım: ${bestWalletCam.appName} ile Ödemeyi Yap",
+                    actionDetail = "${bestWalletCam.appName} üzerinden ${spendAmount.roundToInt()} ₺ ${category.displayName} harcamasını gerçekleştirin (Kalan Kota: ${bestWalletCam.remainingQuota.roundToInt()} ₺).",
                     inAppNavigationPath = bestWalletCam.whereToFindInApp,
                     earnedCashback = walletReward
                 )
             ),
             involvedCampaigns = listOf(bestBankCam, bestWalletCam),
-            warningNotes = listOf(
-                "Bazı bankalar doğrudan 'bakiye yükleme' işlemlerini kampanya dışı tutabilir; bu durumda Paycell/cüzdan içine tanımlı kredi kartıyla doğrudan QR/Online ödeme yaparak her iki kampanyayı tetikleyin."
-            )
+            warningNotes = notes
         )
     }
 
     private fun buildSplitSpendStrategy(
         spendAmount: Double,
-        relevantCampaigns: List<Campaign>
+        relevantCampaigns: List<Campaign>,
+        excludedCount: Int
     ): StrategyPlan? {
-        // Harcama bölme stratejisi en az 2 farklı kampanya varsa ve toplam tutar her ikisinin alt limitine yetiyorsa devreye girer
         val eligible = relevantCampaigns
-            .filter { it.minSpendAmount <= spendAmount }
+            .filter { it.minSpendAmount <= spendAmount && it.remainingQuota > 0.0 }
             .sortedByDescending { it.calculateCashbackForSpend(it.minSpendAmount) / it.minSpendAmount.coerceAtLeast(1.0) }
 
         if (eligible.size < 2) return null
@@ -200,7 +230,7 @@ class StrategyEngine {
         for (cam in eligible) {
             if (remaining >= cam.minSpendAmount && steps.size < 3) {
                 val optimalSlice = if (cam.cashbackRatePercent > 0.0) {
-                    val maxEffectiveSpend = (cam.maxCashbackCap / (cam.cashbackRatePercent / 100.0))
+                    val maxEffectiveSpend = (cam.remainingQuota / (cam.cashbackRatePercent / 100.0))
                     remaining.coerceAtMost(maxEffectiveSpend).coerceAtLeast(cam.minSpendAmount)
                 } else {
                     cam.minSpendAmount
@@ -217,8 +247,8 @@ class StrategyEngine {
                                 stepNumber = steps.size + 1,
                                 appId = cam.appId,
                                 appName = cam.appName,
-                                actionTitle = "${optimalSlice.roundToInt()} TL'lik Kısmı ${cam.appName} ile Öde",
-                                actionDetail = "'${cam.title}' kampanyasının alt limiti olan ${optimalSlice.roundToInt()} TL'yi bu kart/cüzdan ile ödeyerek tavan iadeyi (${reward.roundToInt()} TL) cebe indirin.",
+                                actionTitle = "${optimalSlice.roundToInt()} ₺'lik Kısmı ${cam.appName} ile Öde",
+                                actionDetail = "'${cam.title}' kampanyasının kalan ${cam.remainingQuota.roundToInt()} ₺ kotasından ${reward.roundToInt()} ₺ nakit iadeyi alın.",
                                 inAppNavigationPath = cam.whereToFindInApp,
                                 earnedCashback = reward
                             )
@@ -236,26 +266,31 @@ class StrategyEngine {
         val extraGain = totalSplitCashback - bestSingle
         val returnRate = ((totalSplitCashback / spendAmount) * 100.0).coerceAtMost(100.0)
 
+        val notes = mutableListOf(
+            "Kasada veya online alışverişte ödemeyi bölerek her uygulamanın kalan kotasını maksimum verimle kullanabilirsiniz."
+        )
+        if (excludedCount > 0) {
+            notes.add("Kotası dolmuş $excludedCount kampanya hesaptan otomatik çıkarıldı.")
+        }
+
         return StrategyPlan(
             id = "plan_split_${usedCampaigns.joinToString("_") { it.id }}",
             strategyType = StrategyType.SPLIT_SPEND,
-            title = "Harcamayı ${steps.size} Parçaya Böl: +${extraGain.roundToInt()} TL Fazladan Nakit İade!",
-            subtitle = "${spendAmount.roundToInt()} TL'yi tek karttan çekerseniz kampanya üst limiti nedeniyle sadece ${bestSingle.roundToInt()} TL alırsınız. Ödemeyi bölerek ${totalSplitCashback.roundToInt()} TL alın!",
+            title = "Harcamayı ${steps.size} Parçaya Böl: +${extraGain.roundToInt()} ₺ Fazladan Nakit İade!",
+            subtitle = "${spendAmount.roundToInt()} ₺'yi tek karttan çekerseniz kalan kota sınırı nedeniyle ${bestSingle.roundToInt()} ₺ alırsınız. Bölerek ${totalSplitCashback.roundToInt()} ₺ alın!",
             targetSpendAmount = spendAmount,
             totalCashbackEarned = totalSplitCashback,
             effectiveReturnPercent = returnRate,
             steps = steps,
             involvedCampaigns = usedCampaigns,
-            warningNotes = listOf(
-                "Market kasasında veya online alışverişte (sepeti ikiye bölerek / cüzdan bakiyesi + kart kullanarak) ödemeyi kolayca parçalayabilirsiniz.",
-                "Kalan ${remaining.roundToInt()} TL tutar varsa puan oranı en yüksek kartınızla tamamlayabilirsiniz."
-            )
+            warningNotes = notes
         )
     }
 
     private fun buildSingleBestStrategy(
         spendAmount: Double,
-        relevantCampaigns: List<Campaign>
+        relevantCampaigns: List<Campaign>,
+        excludedCount: Int
     ): StrategyPlan? {
         val bestPair = relevantCampaigns
             .map { cam -> cam to cam.calculateCashbackForSpend(spendAmount) }
@@ -265,11 +300,19 @@ class StrategyEngine {
         val (cam, reward) = bestPair
         val returnRate = ((reward / spendAmount) * 100.0).coerceAtMost(100.0)
 
+        val notes = mutableListOf<String>()
+        if (cam.requiresPreJoin) {
+            notes.add("DİKKAT: Ödeme öncesi '${cam.whereToFindInApp}' menüsünden 'Hemen Katıl' yapılmalıdır.")
+        }
+        if (excludedCount > 0) {
+            notes.add("Bu kategoride kotası dolan $excludedCount kampanya otomatik elendiği için sıradaki en yüksek iadeli kampanya seçildi.")
+        }
+
         return StrategyPlan(
             id = "plan_single_${cam.id}",
             strategyType = StrategyType.SINGLE_OPTIMAL,
             title = "Tek İşlemde En Karlı Seçim: ${cam.appName}",
-            subtitle = "Harcamayı bölmeden tek seferde ödeyecekseniz en yüksek net iadeyi bu kampanya veriyor.",
+            subtitle = "Kalan ${cam.remainingQuota.roundToInt()} ₺ kotası üzerinden tek seferde en yüksek net iadeyi bu kampanya veriyor.",
             targetSpendAmount = spendAmount,
             totalCashbackEarned = reward,
             effectiveReturnPercent = returnRate,
@@ -278,18 +321,14 @@ class StrategyEngine {
                     stepNumber = 1,
                     appId = cam.appId,
                     appName = cam.appName,
-                    actionTitle = if (cam.requiresPreJoin) "Önce '${cam.appName}' Uygulamasından Katıl, Sonra Öde" else "${cam.appName} ile Doğrudan Öde (Otomatik Katılım)",
-                    actionDetail = "${cam.description} (${spendAmount.roundToInt()} TL harcamaya net ${reward.roundToInt()} TL iade).",
+                    actionTitle = if (cam.requiresPreJoin) "Önce '${cam.appName}' Uygulamasından Katıl, Sonra Öde" else "${cam.appName} ile Doğrudan Öde",
+                    actionDetail = "${cam.description} (Kalan Kota: ${cam.remainingQuota.roundToInt()} ₺ • Bu işlemden kazanç: +${reward.roundToInt()} ₺).",
                     inAppNavigationPath = cam.whereToFindInApp,
                     earnedCashback = reward
                 )
             ),
             involvedCampaigns = listOf(cam),
-            warningNotes = if (cam.requiresPreJoin) {
-                listOf("DİKKAT: Bu kampanya ödeme öncesi '${cam.whereToFindInApp}' adımlarından 'Hemen Katıl' butonuna basılmasını şart koşuyor!")
-            } else {
-                listOf("Katılım şartı yoktur, doğrudan ödeme yaptığınızda nakit iade hesabınıza yansır.")
-            }
+            warningNotes = notes
         )
     }
 }

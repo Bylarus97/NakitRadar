@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import com.nakitradar.app.data.InstalledAppScanner
+import com.nakitradar.app.data.LocalQuotaStorage
 import com.nakitradar.app.ui.NakitRadarApp
 import com.nakitradar.app.ui.NakitRadarViewModel
 import com.nakitradar.app.ui.theme.NakitRadarTheme
@@ -18,6 +19,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        val storage = LocalQuotaStorage(applicationContext)
+        viewModel.initializeStorage(storage)
 
         val scanner = InstalledAppScanner(applicationContext)
         viewModel.scanDeviceApps(scanner)

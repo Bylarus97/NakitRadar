@@ -68,25 +68,66 @@ data class Campaign(
     val validUntil: String,
     val source: CampaignSource = CampaignSource.OFFICIAL_WEB,
     val isJoined: Boolean = false,
-    val completedSteps: Int = 0
+    val completedSteps: Int = 0,
+    val earnedSoFar: Double = 0.0
 ) {
     /**
-     * Belirli bir harcama tutarı için bu kampanyadan tek başına alınabilecek net nakit iadeyi hesaplar.
+     * Bu kampanyadan kalan kullanılabilir nakit iade kotası (TL).
+     */
+    val remainingQuota: Double
+        get() = (maxCashbackCap - earnedSoFar).coerceAtLeast(0.0)
+
+    /**
+     * Kampanyanın aylık nakit iade kotası tamamen doldu mu?
+     */
+    val isQuotaFull: Boolean
+        get() = remainingQuota <= 0.01
+
+    /**
+     * Görsel ilerleme çubuğu için 0.0 - 1.0 arası kota doluluk oranı.
+     */
+    val quotaProgressFraction: Float
+        get() = if (maxCashbackCap > 0.0) {
+            (earnedSoFar / maxCashbackCap).toFloat().coerceIn(0f, 1f)
+        } else 0f
+
+    /**
+     * Belirli bir harcama tutarı için bu kampanyadan KALAN KOTA dahilinde alınabilecek net nakit iadeyi hesaplar.
+     * Kotası dolmuş kampanyalar otomatik olarak 0.0 döner ve strateji motorundan elenir.
      */
     fun calculateCashbackForSpend(spendAmount: Double): Double {
-        val totalRequiredMin = minSpendAmount * requiredTransactionCount
-        if (spendAmount < totalRequiredMin) return 0.0
+        if (isQuotaFull) return 0.0
+        if (spendAmount < minSpendAmount) return 0.0
 
         val rawReward = if (flatCashbackAmount > 0.0 && cashbackRatePercent == 0.0) {
-            flatCashbackAmount
+            // Çok adımlı veya tekrarlı kampanyalarda harcama tutarı birden fazla dilimi karşılıyorsa
+            val multiplier = (spendAmount / minSpendAmount).toInt().coerceAtLeast(1)
+            flatCashbackAmount * multiplier
         } else if (cashbackRatePercent > 0.0) {
             (spendAmount * (cashbackRatePercent / 100.0)) + flatCashbackAmount
         } else {
             0.0
         }
-        return rawReward.coerceAtMost(maxCashbackCap)
+        return rawReward.coerceAtMost(remainingQuota)
     }
 }
+
+/**
+ * Kasada ödeme yapıldığında bildirimden otomatik yakalanan veya manuel işlenen harcama kaydı.
+ */
+data class SpendTransactionLog(
+    val id: String,
+    val appId: String,
+    val appName: String,
+    val merchantTitle: String,
+    val spendAmount: Double,
+    val cashbackEarned: Double,
+    val category: SpendCategory,
+    val matchedCampaignId: String?,
+    val matchedCampaignTitle: String?,
+    val timestampLabel: String,
+    val isAutoCapturedFromNotification: Boolean = true
+)
 
 enum class StrategyType(val badge: String) {
     COMBO_STACKING("🔥 ÇİFTE KAZANÇ KOMBOSU (STACKING)"),

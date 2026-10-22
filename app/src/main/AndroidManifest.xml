@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+
+    <!-- Android 11+ (API 30+) Paket Görünürlüğü: Türkiye'deki Operatör, Cüzdan ve Banka Uygulamaları -->
+    <queries>
+        <!-- Turkcell & Paycell Ekosistemi -->
+        <package android:name="com.ttech.android.onlineislem" />
+        <package android:name="com.turkcell.paycell" />
+        <package android:name="com.turkcell.bip" />
+
+        <!-- Diğer Operatör & Cüzdanlar -->
+        <package android:name="com.vodafone.selfservis" />
+        <package android:name="com.vodafone.vodafonepay" />
+        <package android:name="com.tmob.aveaoim" />
+        <package android:name="com.turktelekom.pokus" />
+
+        <!-- Ön Ödemeli Nakit İade Cüzdanları -->
+        <package android:name="com.isbank.nays" />
+        <package android:name="com.mobillium.papara" />
+        <package android:name="com.akode.tosla" />
+        <package android:name="com.tombank.hadi" />
+        <package android:name="com.belbim.istanbulkart" />
+        <package android:name="com.iyzico.android" />
+        <package android:name="com.param.android" />
+
+        <!-- Banka ve Kart Kampanya Uygulamaları -->
+        <package android:name="com.garanti.cepsubesi" />
+        <package android:name="com.garanti.bonusflas" />
+        <package android:name="com.ykb.android" />
+        <package android:name="com.ykb.android.world" />
+        <package android:name="com.akbank.android.apps.akbank_direkt" />
+        <package android:name="com.akbank.android.apps.juzdan" />
+        <package android:name="com.pozitron.iscep" />
+        <package android:name="com.softtech.isbankasi.maximum" />
+        <package android:name="com.ziraat.ziraatmobil" />
+        <package android:name="com.ziraat.bankkartmobil" />
+        <package android:name="com.finansbank.mobile.cepsube" />
+        <package android:name="com.finansbank.enpara" />
+        <package android:name="com.vakifbank.mobile" />
+        <package android:name="com.halkbank.mobil" />
+        <package android:name="com.kuveytturk.mobil" />
+        <package android:name="com.intertech.mobildeniz" />
+        <package android:name="com.teb.android" />
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Başka uygulamalardan kampanya metni paylaşıldığında yakalar -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
+        <!-- Uygulama Bildirimlerinden Otomatik Kampanya ve Nakit İade Yakalayıcı Servis -->
+        <service
+            android:name=".service.CampaignNotificationListener"
+            android:exported="true"
+            android:label="@string/notification_listener_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+    </application>
+
+</manifest>

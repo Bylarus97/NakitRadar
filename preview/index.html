@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>NakitRadar — Android Nakit İade & Kombo Strateji Simülatörü</title>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --surface: #111827;
+      --surface-variant: #1e293b;
+      --border: #334155;
+      --primary: #10b981;
+      --primary-dark: #064e3b;
+      --primary-light: #a7f3d0;
+      --secondary: #f59e0b;
+      --secondary-dark: #78350f;
+      --secondary-light: #fde68a;
+      --tertiary: #38bdf8;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+    body {
+      background: #050811;
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 16px;
+    }
+    .phone-frame {
+      width: 100%;
+      max-width: 460px;
+      background: var(--bg);
+      border: 2px solid var(--border);
+      border-radius: 28px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.75);
+      max-height: 95vh;
+    }
+    .status-bar {
+      background: #090d16;
+      padding: 8px 18px;
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid #1e293b;
+    }
+    .top-dashboard {
+      background: var(--surface);
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .top-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-title {
+      color: var(--primary);
+      font-weight: 800;
+      font-size: 15px;
+    }
+    .brand-sub {
+      color: var(--text-muted);
+      font-size: 11px;
+      margin-top: 2px;
+    }
+    .btn-row { display: flex; gap: 6px; }
+    .btn {
+      background: var(--surface-variant);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.15s;
+    }
+    .btn:hover { border-color: var(--primary); color: var(--primary-light); }
+    .btn-primary {
+      background: var(--primary);
+      color: #042f2e;
+      border-color: var(--primary);
+      font-weight: 700;
+    }
+    .btn-primary:hover { opacity: 0.92; color: #042f2e; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .stat-card {
+      background: var(--surface-variant);
+      padding: 8px 12px;
+      border-radius: 10px;
+    }
+    .stat-label { font-size: 10px; color: var(--text-muted); }
+    .stat-val { font-size: 18px; font-weight: 800; margin-top: 2px; }
+    .banner {
+      margin: 8px 12px 0;
+      padding: 8px 12px;
+      background: var(--primary-dark);
+      color: var(--primary-light);
+      border-radius: 8px;
+      font-size: 11px;
+      display: none;
+    }
+    .content-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .card-highlight {
+      border-color: rgba(16, 185, 129, 0.5);
+    }
+    .chip-scroll {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 6px;
+      margin-top: 8px;
+    }
+    .chip {
+      white-space: nowrap;
+      padding: 6px 11px;
+      border-radius: 20px;
+      font-size: 11px;
+      background: var(--surface-variant);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      cursor: pointer;
+    }
+    .chip.active {
+      background: var(--primary-dark);
+      color: var(--primary-light);
+      border-color: var(--primary);
+      font-weight: 700;
+    }
+    .badge-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      gap: 6px;
+    }
+    .badge-type {
+      background: var(--secondary-dark);
+      color: var(--secondary-light);
+      font-size: 10px;
+      font-weight: 800;
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+    .badge-reward {
+      background: var(--primary-dark);
+      color: var(--primary-light);
+      font-size: 12px;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 8px;
+    }
+    .step-box {
+      background: var(--surface-variant);
+      border-radius: 10px;
+      padding: 10px;
+      margin-top: 8px;
+      border-left: 3px solid var(--primary);
+    }
+    .path-hint {
+      margin-top: 6px;
+      padding: 6px 8px;
+      background: rgba(245, 158, 11, 0.12);
+      border-radius: 6px;
+      color: var(--secondary-light);
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .synergy-box {
+      margin-top: 6px;
+      padding: 7px 9px;
+      background: rgba(16, 185, 129, 0.15);
+      border-radius: 6px;
+      color: var(--primary-light);
+      font-size: 11px;
+    }
+    .bottom-nav {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      padding: 6px 4px;
+    }
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      padding: 6px 2px;
+      color: var(--text-muted);
+      font-size: 10px;
+      cursor: pointer;
+      border-radius: 10px;
+    }
+    .nav-item.active {
+      color: var(--primary);
+      background: rgba(16, 185, 129, 0.1);
+      font-weight: 700;
+    }
+    input[type="range"] { width: 100%; accent-color: var(--primary); margin: 8px 0; }
+    textarea, input[type="text"] {
+      width: 100%;
+      background: var(--surface-variant);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 12px;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="phone-frame">
+    <div class="status-bar">
+      <span>Android 15 • NakitRadar Native Önizleme</span>
+      <span>5G • %94 🔋</span>
+    </div>
+
+    <div class="top-dashboard">
+      <div class="top-header">
+        <div>
+          <div class="brand-title">NakitRadar • İade & Kombo Stratejisi</div>
+          <div class="brand-sub" id="subSummary">Aktif 9 Uygulama • 13 Nakit İade Kampanyası</div>
+        </div>
+        <div class="btn-row">
+          <button class="btn" onclick="simulateDeviceScan()">📱 Cihazı Tara</button>
+          <button class="btn" onclick="simulateNotificationCapture()">🔔 Bildirim Test</button>
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Aylık Maks. Nakit İade Potansiyeli</div>
+          <div class="stat-val" style="color: var(--primary)" id="statPotential">0 TL</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Katıldığım Kampanya İadesi</div>
+          <div class="stat-val" style="color: var(--secondary)" id="statJoined">0 TL</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="banner" id="statusBanner"></div>
+
+    <div class="content-area" id="mainContent"></div>
+
+    <div class="bottom-nav">
+      <div class="nav-item active" id="nav-0" onclick="switchTab(0)">
+        <span>🎯</span>
+        <span>Strateji Motoru</span>
+      </div>
+      <div class="nav-item" id="nav-1" onclick="switchTab(1)">
+        <span>📋</span>
+        <span>Kampanyalar</span>
+      </div>
+      <div class="nav-item" id="nav-2" onclick="switchTab(2)">
+        <span>⚡</span>
+        <span>Turkcell+Paycell</span>
+      </div>
+      <div class="nav-item" id="nav-3" onclick="switchTab(3)">
+        <span>🤖</span>
+        <span>AI & Cihaz</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const categories = [
+      { id: "FATURA_OPERATOR", name: "Fatura & Operatör", emoji: "📱" },
+      { id: "MARKET_GIDA", name: "Market & Süpermarket", emoji: "🛒" },
+      { id: "AKARYAKIT", name: "Akaryakıt", emoji: "⛽" },
+      { id: "ETICARET", name: "E-Ticaret", emoji: "📦" },
+      { id: "DIJITAL_OYUN", name: "Dijital & Oyun", emoji: "🎮" },
+      { id: "ECZANE_SAGLIK", name: "Eczane & Ulaşım", emoji: "💊" }
+    ];
+
+    const apps = [
+      { id: "turkcell", name: "Turkcell Uygulaması", badge: "TCELL", type: "OPERATOR", enabled: true, url: "https://www.turkcell.com.tr/kampanyalar", hint: "1) Ayrıcalıklar > Kampanyalar  2) Pasaj > Kampanyalar  3) Fatura > Paycell Ödeme" },
+      { id: "paycell", name: "Paycell", badge: "PAYCELL", type: "WALLET", enabled: true, url: "https://paycell.com.tr/kampanyalar", hint: "1) Fırsatlar > Nakit İade (Hemen Katıl!)  2) Hediye Dünyası  3) Fatura Öde" },
+      { id: "nays", name: "Nays (İş Bankası)", badge: "NAYS", type: "WALLET", enabled: true, url: "https://www.naysapp.com.tr/firsatlar", hint: "Ana Sayfa > Fırsatlar > E-Ticaret / Market Hediye Nakit" },
+      { id: "papara", name: "Papara", badge: "PAPARA", type: "WALLET", enabled: true, url: "https://www.papara.com/cashback", hint: "Papara Card > Cashback (Katılım Şartsız Otomatik)" },
+      { id: "bonusflas", name: "Garanti BBVA & BonusFlaş", badge: "BONUS", type: "BANK", enabled: true, url: "https://www.bonus.com.tr/kampanyalar", hint: "BonusFlaş > Alt Menü: Bana Özel > Süpermarket & E-Ticaret > Hemen Katıl" },
+      { id: "juzdan", name: "Akbank & Juzdan", badge: "JUZDAN", type: "BANK", enabled: true, url: "https://www.axess.com.tr/axess/kampanya", hint: "Juzdan > Senin İçin > Bana Özel Kampanyalar > Hemen Katıl" },
+      { id: "worldmobil", name: "Yapı Kredi & World Mobil", badge: "WORLD", type: "BANK", enabled: true, url: "https://www.worldcard.com.tr/kampanyalar", hint: "World Mobil > Sana Özel > Sektör Kampanyaları > Katıl" },
+      { id: "maximum", name: "İşCep & Maximum Mobil", badge: "MAXI", type: "BANK", enabled: true, url: "https://www.maximum.com.tr/kampanyalar", hint: "Maximum Mobil > Kampanyalar > Bana Özel > Katıl" },
+      { id: "bankkart", name: "Ziraat & Bankkart Mobil", badge: "ZİRAAT", type: "BANK", enabled: true, url: "https://www.bankkart.com.tr/kampanyalar", hint: "Bankkart Mobil > Kampanyalar > Hemen Katıl (Bankkart Lira Ekstre İndirimi)" }
+    ];
+
+    let campaigns = [
+      {
+        id: "tcell_paycell_fatura_150", appId: "turkcell", appName: "Turkcell Uygulaması",
+        title: "Turkcell Faturanı Paycell ile Öde, 150 TL Nakit İade Kazan!",
+        description: "Turkcell mobil veya Superonline faturanızı Turkcell uygulaması içinden Paycell Kart veya Paycell Cüzdan ile ödediğinizde 150 TL nakit iade.",
+        whereToFindInApp: "Turkcell > Alt Menü: Fatura > Ödeme Yöntemi: Paycell > Kampanyaya Katıl",
+        category: "FATURA_OPERATOR", minSpend: 350, rate: 0, flat: 150, cap: 150, requiresJoin: true,
+        canStackAsBank: false, synergyPartner: "paycell", synergyBonus: 75,
+        synergyNote: "Paycell uygulamasındaki 'Fatura Ödemelerine 75 TL Nakit İade' kampanyasına da katılırsanız tek faturadan 150 + 75 = 225 TL çifte iade alırsınız!",
+        source: "Uygulama İçi Gizli Sekme", joined: true
+      },
+      {
+        id: "paycell_fatura_75", appId: "paycell", appName: "Paycell",
+        title: "Paycell'den Fatura Ödemelerine Her Faturaya 75 TL, Toplam 225 TL Nakit İade",
+        description: "Paycell uygulaması üzerinden ödeyeceğiniz telekom, elektrik, su, doğalgaz faturalarında her fatura için 75 TL nakit iade.",
+        whereToFindInApp: "Paycell > Alt Menü: Fırsatlar > Fatura Kampanyaları > Hemen Katıl",
+        category: "FATURA_OPERATOR", minSpend: 300, rate: 0, flat: 75, cap: 225, requiresJoin: true,
+        canStackAsBank: false, synergyPartner: "turkcell", synergyBonus: 150,
+        synergyNote: "Turkcell faturanızı öderken hem Turkcell 150 TL hem Paycell 75 TL kampanyası aynı anda tetiklenir!",
+        source: "Resmi Kampanya", joined: true
+      },
+      {
+        id: "paycell_market_150", appId: "paycell", appName: "Paycell",
+        title: "Market Harcamalarında 1.000 TL ve Üzerine 150 TL Nakit İade!",
+        description: "Tüm fiziksel ve online marketlerde Paycell Kart veya QR ile tek seferde 1.000 TL ve üzeri harcamaya 150 TL nakit iade.",
+        whereToFindInApp: "Paycell > Fırsatlar > Alışveriş & Market > Hemen Katıl",
+        category: "MARKET_GIDA", minSpend: 1000, rate: 0, flat: 150, cap: 150, requiresJoin: true,
+        canStackAsBank: false, synergyPartner: "bonusflas", synergyBonus: 125,
+        synergyNote: "Banka kartı kampanyası + Paycell Kart ile ödemeyi birleştirerek veya alışverişi ikiye bölerek iki kurumdan da iade alabilirsiniz.",
+        source: "Resmi Kampanya", joined: false
+      },
+      {
+        id: "paycell_akaryakit_175", appId: "paycell", appName: "Paycell",
+        title: "Akaryakıt İstasyonlarında 1.250 TL Harcamaya 175 TL Nakit İade",
+        description: "Paycell Kart veya Paycell QR ile 1.250 TL ve üzeri yakıt alımına 175 TL nakit iade.",
+        whereToFindInApp: "Paycell > Fırsatlar > Araç & Akaryakıt > Hemen Katıl",
+        category: "AKARYAKIT", minSpend: 1250, rate: 0, flat: 175, cap: 175, requiresJoin: true,
+        canStackAsBank: false, source: "Resmi Kampanya", joined: false
+      },
+      {
+        id: "paycell_dijital_150", appId: "paycell", appName: "Paycell",
+        title: "YouTube, Netflix, Spotify ve Oyun Harcamalarında %50 Nakit İade",
+        description: "Dijital platform ve oyun harcamalarınızda Paycell Kart ile ödemeye %50 (maks. 150 TL) nakit iade.",
+        whereToFindInApp: "Paycell > Fırsatlar > Dijital & Oyun > Hemen Katıl",
+        category: "DIJITAL_OYUN", minSpend: 50, rate: 50, flat: 0, cap: 150, requiresJoin: true,
+        canStackAsBank: false, source: "Resmi Kampanya", joined: false
+      },
+      {
+        id: "tcell_pasaj_300", appId: "turkcell", appName: "Turkcell Uygulaması",
+        title: "Turkcell Pasaj & Online Alışverişte Paycell ile 2.000 TL'ye 300 TL Nakit İade",
+        description: "Turkcell uygulaması içindeki Pasaj sekmesinden yapılacak alışverişlerde Paycell ile ödemeye 300 TL nakit iade.",
+        whereToFindInApp: "Turkcell > Alt Menü: Pasaj > Kampanyalar > Paycell Nakit İade Fırsatı",
+        category: "ETICARET", minSpend: 2000, rate: 0, flat: 300, cap: 300, requiresJoin: true,
+        canStackAsBank: false, synergyPartner: "paycell", synergyBonus: 100,
+        synergyNote: "Paycell Hediye Dünyası'ndaki puanlarınızı da aynı işlemde ekstra 100 TL nakit indirime dönüştürebilirsiniz.",
+        source: "Uygulama İçi Gizli Sekme", joined: false
+      },
+      {
+        id: "nays_eticaret_200", appId: "nays", appName: "Nays (İş Bankası)",
+        title: "E-Ticaret Alışverişlerinde %10 (200 TL'ye Varan) Hediye Nakit İade",
+        description: "Trendyol, Hepsiburada, Amazon ve Pazarama alışverişlerinizde Nays ile ödemeye %10 doğrudan nakit iade.",
+        whereToFindInApp: "Nays > Fırsatlar > E-Ticaret %10 Hediye Nakit (Otomatik Katılımlı)",
+        category: "ETICARET", minSpend: 250, rate: 10, flat: 0, cap: 200, requiresJoin: false,
+        canStackAsBank: false, source: "Resmi Kampanya", joined: true
+      },
+      {
+        id: "nays_market_150", appId: "nays", appName: "Nays (İş Bankası)",
+        title: "Market ve Fatura Ödemelerinde %10 (150 TL'ye Varan) Hediye Nakit",
+        description: "Nays ile yapılan market alışverişlerinde ve fatura ödemelerinde %10 anında nakit iade.",
+        whereToFindInApp: "Nays > Fırsatlar > Market & Fatura",
+        category: "MARKET_GIDA", minSpend: 200, rate: 10, flat: 0, cap: 150, requiresJoin: false,
+        canStackAsBank: false, source: "Resmi Kampanya", joined: false
+      },
+      {
+        id: "papara_eczane_150", appId: "papara", appName: "Papara",
+        title: "Eczane, Ulaşım ve Dijital Aboneliklerde Anında %15 Cashback",
+        description: "Papara Card ile tüm eczanelerde ve ulaşım kartı yüklemelerinde katılım şartsız anında nakit iade.",
+        whereToFindInApp: "Papara > Cashback Sekmesi (Otomatik Aktif)",
+        category: "ECZANE_SAGLIK", minSpend: 50, rate: 15, flat: 0, cap: 150, requiresJoin: false,
+        canStackAsBank: false, source: "Resmi Kampanya", joined: false
+      },
+      {
+        id: "bonus_market_125", appId: "bonusflas", appName: "Garanti BBVA & BonusFlaş",
+        title: "Bana Özel: Market Harcamalarında 1.000 TL'ye 125 TL, Toplam 375 TL Bonus",
+        description: "BonusFlaş 'Bana Özel' sekmesinde gizli duran kampanya: Her 1.000 TL harcamaya 125 TL nakit değerinde Bonus.",
+        whereToFindInApp: "BonusFlaş > Alt Menü: Bana Özel > Süpermarket > Hemen Katıl",
+        category: "MARKET_GIDA", minSpend: 1000, rate: 0, flat: 125, cap: 375, requiresJoin: true,
+        canStackAsBank: true, source: "Uygulama İçi Gizli Sekme", joined: false
+      },
+      {
+        id: "bonus_eticaret_200", appId: "bonusflas", appName: "Garanti BBVA & BonusFlaş",
+        title: "E-Ticaret ve Online Ödemelerde 1.500 TL Harcamaya 200 TL Bonus İade",
+        description: "BonusFlaş'tan katılarak yapılacak 1.500 TL ve üzeri online alışveriş veya dijital ödemelerde 200 TL Bonus.",
+        whereToFindInApp: "BonusFlaş > Kampanyalar > İnternet & E-Ticaret > Hemen Katıl",
+        category: "ETICARET", minSpend: 1500, rate: 0, flat: 200, cap: 200, requiresJoin: true,
+        canStackAsBank: true, source: "Resmi Kampanya", joined: false
+      },
+      {
+        id: "juzdan_market_150", appId: "juzdan", appName: "Akbank & Juzdan",
+        title: "Senin İçin: Market ve Akaryakıtta 1.250 TL Harcamaya 150 TL Chip-Para",
+        description: "Juzdan 'Senin İçin' sekmesinden katılımda 1.250 TL harcamaya 150 TL Chip-Para ('Chip-Para ile Öde' seçilerek ekstreden nakit düşülebilir!).",
+        whereToFindInApp: "Juzdan > Senin İçin > Bana Özel Kampanyalar > Hemen Katıl",
+        category: "MARKET_GIDA", minSpend: 1250, rate: 0, flat: 150, cap: 450, requiresJoin: true,
+        canStackAsBank: true, source: "Uygulama İçi Gizli Sekme", joined: false
+      },
+      {
+        id: "juzdan_fatura_200", appId: "juzdan", appName: "Akbank & Juzdan",
+        title: "Telekom ve Fatura Ödemelerine 200 TL Chip-Para İade",
+        description: "Juzdan'dan kampanyaya katılıp yapacağınız 500 TL ve üzeri fatura ödemesine 200 TL Chip-Para.",
+        whereToFindInApp: "Juzdan > Kampanyalar > Fatura & Ödeme > Hemen Katıl",
+        category: "FATURA_OPERATOR", minSpend: 500, rate: 0, flat: 200, cap: 200, requiresJoin: true,
+        canStackAsBank: true, source: "Uygulama İçi Gizli Sekme", joined: false
+      },
+      {
+        id: "bankkart_akaryakit_150", appId: "bankkart", appName: "Ziraat & Bankkart Mobil",
+        title: "Akaryakıt ve Faturada 1.000 TL'ye 150 TL Bankkart Lira (Ekstre İadesi)",
+        description: "Bankkart Mobil'den katılıp 1.000 TL harcama yaptığınızda 150 TL Bankkart Lira (Dönem içi ekstreden nakit düşülebilir).",
+        whereToFindInApp: "Bankkart Mobil > Kampanyalar > Hemen Katıl",
+        category: "AKARYAKIT", minSpend: 1000, rate: 0, flat: 150, cap: 450, requiresJoin: true,
+        canStackAsBank: true, source: "Resmi Kampanya", joined: false
+      }
+    ];
+
+    let currentTab = 0;
+    let selectedCategory = "MARKET_GIDA";
+    let simulatedSpend = 2250;
+    let selectedFilterApp = null;
+    let aiReportText = "";
+
+    function calcReward(cam, amount) {
+      if (amount < cam.minSpend) return 0;
+      let raw = (cam.flat > 0 && cam.rate === 0) ? cam.flat : ((amount * (cam.rate / 100)) + cam.flat);
+      return Math.min(raw, cam.cap);
+    }
+
+    function generateStrategies() {
+      const enabledIds = new Set(apps.filter(a => a.enabled).map(a => a.id));
+      const appMap = Object.fromEntries(apps.map(a => [a.id, a]));
+      const rel = campaigns.filter(c => enabledIds.has(c.appId) && c.category === selectedCategory);
+      const plans = [];
+
+      // 1. Sinerji Zinciri
+      const syn = rel.find(c => c.synergyPartner && enabledIds.has(c.synergyPartner) && simulatedSpend >= c.minSpend);
+      if (syn) {
+        const mainR = calcReward(syn, simulatedSpend);
+        const totalR = mainR + (syn.synergyBonus || 0);
+        plans.push({
+          badge: "⚡ TURKCELL + PAYCELL + BANKA ZİNCİRİ",
+          title: `${syn.appName} + Paycell Ekosistem Sinerjisi`,
+          subtitle: "İki kardeş uygulamanın kampanyasını aynı işlemde tetikleyerek tek harcamadan çifte nakit iade alın!",
+          totalCashback: totalR,
+          percent: Math.round((totalR / simulatedSpend) * 100),
+          steps: [
+            { num: 1, appName: "Paycell / Ortak Uygulama", title: "Önce Ortak Uygulamada 'Hemen Katıl' Yap", detail: syn.synergyNote, path: "Paycell > Fırsatlar > Hemen Katıl", reward: syn.synergyBonus, appId: syn.synergyPartner },
+            { num: 2, appName: syn.appName, title: `${syn.appName} Üzerinden İşlemi Tamamla`, detail: syn.description, path: syn.whereToFindInApp, reward: mainR, appId: syn.appId }
+          ],
+          note: "Ödemeyi yapmadan ÖNCE her iki uygulamada da 'Hemen Katıl' butonuna basılmış olmalıdır."
+        });
+      }
+
+      // 2. Çifte Kazanç Kombosu (Stacking)
+      const wallets = rel.filter(c => appMap[c.appId]?.type === "WALLET" && simulatedSpend >= c.minSpend);
+      const banks = rel.filter(c => appMap[c.appId]?.type === "BANK" && c.canStackAsBank && simulatedSpend >= c.minSpend);
+      if (wallets.length > 0 && banks.length > 0) {
+        const bestW = wallets.sort((a,b) => calcReward(b, simulatedSpend) - calcReward(a, simulatedSpend))[0];
+        const bestB = banks.sort((a,b) => calcReward(b, simulatedSpend) - calcReward(a, simulatedSpend))[0];
+        const wR = calcReward(bestW, simulatedSpend);
+        const bR = calcReward(bestB, simulatedSpend);
+        const tot = wR + bR;
+        plans.push({
+          badge: "🔥 ÇİFTE KAZANÇ KOMBOSU (STACKING)",
+          title: `${bestB.appName} + ${bestW.appName} Kombosu`,
+          subtitle: "Banka kartı kampanyası ile ön ödemeli cüzdan iadesini birleştirerek 2 ayrı kurumdan iade kazanın.",
+          totalCashback: tot,
+          percent: Math.round((tot / simulatedSpend) * 100),
+          steps: [
+            { num: 1, appName: bestB.appName, title: `1. Adım: ${bestB.appName} Kampanyasına Katıl`, detail: bestB.title, path: bestB.whereToFindInApp, reward: bR, appId: bestB.appId },
+            { num: 2, appName: bestW.appName, title: `2. Adım: ${bestW.appName} ile ${simulatedSpend} TL Ödemeyi Yap`, detail: bestW.title, path: bestW.whereToFindInApp, reward: wR, appId: bestW.appId }
+          ],
+          note: "Cüzdan içine tanımlı kredi kartıyla QR/Online ödeme yaparak veya kampanya şartına uygun yükleme ile iki kampanyayı birlikte tetikleyin."
+        });
+      }
+
+      // 3. Harcama Bölme (Split Payment)
+      const eligible = [...rel].filter(c => c.minSpend <= simulatedSpend)
+        .sort((a,b) => (calcReward(b, b.minSpend)/b.minSpend) - (calcReward(a, a.minSpend)/a.minSpend));
+      if (eligible.length >= 2) {
+        let rem = simulatedSpend;
+        let splitSteps = [];
+        let splitTot = 0;
+        for (const c of eligible) {
+          if (rem >= c.minSpend && splitSteps.length < 3) {
+            const slice = c.rate > 0 ? Math.min(rem, Math.max(c.minSpend, c.cap / (c.rate/100))) : c.minSpend;
+            if (rem >= slice) {
+              const r = calcReward(c, slice);
+              if (r > 0) {
+                rem -= slice;
+                splitTot += r;
+                splitSteps.push({
+                  num: splitSteps.length + 1,
+                  appName: c.appName,
+                  title: `${Math.round(slice)} TL'lik Kısmı ${c.appName} ile Öde`,
+                  detail: `'${c.title}' alt limiti olan ${Math.round(slice)} TL'yi bu uygulamadan ödeyerek tavan iadeyi (${Math.round(r)} TL) alın.`,
+                  path: c.whereToFindInApp,
+                  reward: r,
+                  appId: c.appId
+                });
+              }
+            }
+          }
+        }
+        const bestSingle = rel.reduce((m, c) => Math.max(m, calcReward(c, simulatedSpend)), 0);
+        if (splitSteps.length >= 2 && splitTot > bestSingle) {
+          plans.push({
+            badge: "✂️ HARCAMA BÖLME (ÇOKLU İADE) STRATEJİSİ",
+            title: `Ödemeyi ${splitSteps.length} Parçaya Böl: +${Math.round(splitTot - bestSingle)} TL Fazladan İade!`,
+            subtitle: `${simulatedSpend} TL'yi tek karttan çekerseniz üst limit nedeniyle sadece ${Math.round(bestSingle)} TL alırsınız. Bölerek ${Math.round(splitTot)} TL alın!`,
+            totalCashback: splitTot,
+            percent: Math.round((splitTot / simulatedSpend) * 100),
+            steps: splitSteps,
+            note: "Kasada veya online siparişte ödemeyi iki ayrı kart/cüzdan (ör. Paycell + Banka/Nays) arasında bölerek her ikisinin tavan iadesini alabilirsiniz."
+          });
+        }
+      }
+
+      // 4. Tek İşlemde En İyi
+      const singleSorted = [...rel].map(c => ({ c, r: calcReward(c, simulatedSpend) })).filter(x => x.r > 0).sort((a,b) => b.r - a.r);
+      if (singleSorted.length > 0) {
+        const best = singleSorted[0];
+        plans.push({
+          badge: "🎯 TEK İŞLEMDE MAKSİMUM İADE",
+          title: `Tek Seferde En Karlı: ${best.c.appName}`,
+          subtitle: "Harcamayı bölmeden tek işlemde ödeyecekseniz en yüksek net nakit iadeyi bu kampanya veriyor.",
+          totalCashback: best.r,
+          percent: Math.round((best.r / simulatedSpend) * 100),
+          steps: [
+            { num: 1, appName: best.c.appName, title: best.c.requiresJoin ? "Önce Uygulamadan Katıl, Sonra Öde" : "Doğrudan Öde (Otomatik Katılım)", detail: best.c.description, path: best.c.whereToFindInApp, reward: best.r, appId: best.c.appId }
+          ],
+          note: best.c.requiresJoin ? "DİKKAT: Ödeme öncesi uygulama içi gizli sekmeden 'Hemen Katıl' butonuna basılması zorunludur!" : "Katılım şartı yoktur, doğrudan ödeme yapabilirsiniz."
+        });
+      }
+
+      return plans.sort((a,b) => b.totalCashback - a.totalCashback);
+    }
+
+    function showBanner(msg) {
+      const el = document.getElementById("statusBanner");
+      el.textContent = msg;
+      el.style.display = "block";
+      setTimeout(() => { el.style.display = "none"; }, 4500);
+    }
+
+    function simulateDeviceScan() {
+      showBanner("📱 Cihaz tarandı: Turkcell, Paycell, Nays, Papara, BonusFlaş, Juzdan, World, Maximum ve Bankkart tespit edildi!");
+      render();
+    }
+
+    function simulateNotificationCapture() {
+      const id = "notif_" + Date.now();
+      campaigns.unshift({
+        id,
+        appId: "paycell",
+        appName: "Paycell (Bildirimden Yakalandı)",
+        title: "Bana Özel Bildirim: Bu Hafta Sonu Market ve Faturada 750 TL'ye 125 TL Ekstra Nakit İade!",
+        description: "Az önce Paycell bildiriminden otomatik yakalandı ve strateji motoruna dahil edildi.",
+        whereToFindInApp: "Paycell > Bildirim Çanı (Sağ Üst) > Bana Özel Fırsat > Hemen Katıl",
+        category: selectedCategory,
+        minSpend: 750, rate: 0, flat: 125, cap: 125, requiresJoin: true,
+        canStackAsBank: false, source: "Bildirimden Yakalandı", joined: false
+      });
+      showBanner("🔔 Paycell'den yeni '750 TL'ye 125 TL Nakit İade' bildirimi yakalandı ve strateji motoruna eklendi!");
+      render();
+    }
+
+    function switchTab(idx) {
+      currentTab = idx;
+      for (let i = 0; i < 4; i++) {
+        document.getElementById("nav-" + i).classList.toggle("active", i === idx);
+      }
+      render();
+    }
+
+    function toggleJoin(camId) {
+      const c = campaigns.find(x => x.id === camId);
+      if (c) c.joined = !c.joined;
+      render();
+    }
+
+    function toggleApp(appId) {
+      const a = apps.find(x => x.id === appId);
+      if (a) a.enabled = !a.enabled;
+      render();
+    }
+
+    function openAppUrl(appId) {
+      const a = apps.find(x => x.id === appId);
+      if (a && a.url) window.open(a.url, "_blank");
+    }
+
+    function importCustomCampaign() {
+      const txt = document.getElementById("customCamInput").value.trim();
+      const appId = document.getElementById("customAppSelect").value;
+      if (!txt) return;
+      const app = apps.find(a => a.id === appId) || apps[1];
+      const matches = [...txt.matchAll(/(\d[\d.]*)\s*TL/gi)].map(m => parseFloat(m[1].replace(".", "")));
+      const reward = matches.length >= 2 ? Math.min(...matches) : (matches[0] || 150);
+      const minSpend = matches.length >= 2 ? Math.max(...matches) : reward * 5;
+      campaigns.unshift({
+        id: "ai_" + Date.now(),
+        appId: app.id,
+        appName: app.name,
+        title: txt.slice(0, 85),
+        description: txt,
+        whereToFindInApp: `${app.name} > ${app.hint}`,
+        category: selectedCategory,
+        minSpend, rate: 0, flat: reward, cap: reward, requiresJoin: true,
+        canStackAsBank: app.type === "BANK", source: "AI / Ekran Görüntüsü", joined: true
+      });
+      showBanner(`✅ '${app.name}' kampanyası (${minSpend} TL'ye ${reward} TL İade) çözümlendi ve Strateji Motoruna eklendi!`);
+      render();
+    }
+
+    function generateAiAdvisorReport() {
+      const activeApps = apps.filter(a => a.enabled);
+      const totalPot = campaigns.filter(c => activeApps.some(a => a.id === c.appId)).reduce((s,c) => s + c.cap, 0);
+      aiReportText = `📊 NAKİTRADAR AKILLI STRATEJİ RAPORU
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Aktif Uygulamalarınız: ${activeApps.map(a => a.badge).join(", ")}
+• Bu Ayki Toplam Nakit İade Havuzunuz: ${totalPot} TL
+
+⚡ 1. TURKCELL + PAYCELL ÇİFTE İADE ZİNCİRİ:
+• Önce Paycell uygulamasında 'Fırsatlar > Fatura Kampanyaları' sekmesinden 75 TL iade kampanyasına 'Hemen Katıl' yapın.
+• Ardından Turkcell uygulamasında 'Fatura' sekmesine girip faturanızı Paycell ile ödeyin -> 150 TL (Turkcell) + 75 TL (Paycell) = 225 TL Nakit İade!
+
+🔥 2. MARKET & E-TİCARET HARCAMA BÖLME VE KOMBO:
+• 2.250 TL harcamayı tek karttan çekerseniz 150 TL tavan sınırına takılırsınız.
+• Bunun yerine: 1.000 TL'sini Paycell Kart ile (+150 TL iade), 1.000 TL'sini BonusFlaş/Juzdan ile (+125/150 TL iade), kalan 250 TL'sini Nays ile (+25 TL iade) ödeyerek toplam 300+ TL nakit iade kazanın!`;
+      render();
+    }
+
+    function render() {
+      const enabledIds = new Set(apps.filter(a => a.enabled).map(a => a.id));
+      const activeCampaigns = campaigns.filter(c => enabledIds.has(c.appId));
+      const totalPotential = activeCampaigns.reduce((s, c) => s + c.cap, 0);
+      const joinedTotal = campaigns.filter(c => c.joined).reduce((s, c) => s + c.cap, 0);
+
+      document.getElementById("subSummary").textContent = `Aktif ${enabledIds.size} Uygulama • ${activeCampaigns.length} Nakit İade Kampanyası`;
+      document.getElementById("statPotential").textContent = `${totalPotential} TL`;
+      document.getElementById("statJoined").textContent = `${joinedTotal} TL`;
+
+      const container = document.getElementById("mainContent");
+
+      if (currentTab === 0) {
+        const plans = generateStrategies();
+        container.innerHTML = `
+          <div class="card">
+            <div style="font-weight:700; font-size:15px;">🎯 Harcama & Kombo Strateji Simülatörü</div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">
+              Harcama yapacağınız sektörü ve tutarı seçin; uygulamaları nasıl birleştirerek (Stacking) veya bölerek maksimum nakit iade alacağınızı görün.
+            </div>
+            <div class="chip-scroll">
+              ${categories.map(cat => `
+                <div class="chip ${selectedCategory === cat.id ? 'active' : ''}" onclick="selectedCategory='${cat.id}'; render();">
+                  ${cat.emoji} ${cat.name}
+                </div>
+              `).join("")}
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+              <span style="font-size:12px;">Planlanan Harcama Tutarı:</span>
+              <span style="font-size:17px; font-weight:800; color:var(--primary);">${simulatedSpend} TL</span>
+            </div>
+            <input type="range" min="200" max="5000" step="50" value="${simulatedSpend}" oninput="simulatedSpend=parseInt(this.value); render();" />
+            <div class="btn-row" style="margin-top:4px;">
+              ${[500, 1000, 1500, 2250, 3500].map(p => `
+                <button class="btn" style="flex:1" onclick="simulatedSpend=${p}; render();">${p}₺</button>
+              `).join("")}
+            </div>
+          </div>
+
+          ${plans.map(plan => `
+            <div class="card card-highlight">
+              <div class="badge-row">
+                <span class="badge-type">${plan.badge}</span>
+                <span class="badge-reward">+${Math.round(plan.totalCashback)} TL İADE (%${plan.percent})</span>
+              </div>
+              <div style="font-weight:700; font-size:15px;">${plan.title}</div>
+              <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">${plan.subtitle}</div>
+              ${plan.steps.map(s => `
+                <div class="step-box">
+                  <div style="display:flex; justify-content:space-between; font-weight:700; font-size:12px;">
+                    <span>${s.num}. ${s.title}</span>
+                    <span style="color:var(--primary)">+${Math.round(s.reward)} TL</span>
+                  </div>
+                  <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">${s.detail}</div>
+                  <div class="path-hint">📍 Uygulama İçi Konum: ${s.path}</div>
+                  <div style="margin-top:6px;">
+                    <button class="btn" onclick="openAppUrl('${s.appId}')">↗ ${s.appName} Kampanyasını Aç</button>
+                  </div>
+                </div>
+              `).join("")}
+              <div style="font-size:11px; color:var(--text-muted); margin-top:8px;">💡 ${plan.note}</div>
+            </div>
+          `).join("")}
+        `;
+      } else if (currentTab === 1) {
+        const filtered = activeCampaigns.filter(c => !selectedFilterApp || c.appId === selectedFilterApp);
+        container.innerHTML = `
+          <div class="chip-scroll" style="margin-top:0;">
+            <div class="chip ${!selectedFilterApp ? 'active' : ''}" onclick="selectedFilterApp=null; render();">
+              Tümü (${activeCampaigns.length})
+            </div>
+            ${apps.filter(a => a.enabled).map(a => `
+              <div class="chip ${selectedFilterApp === a.id ? 'active' : ''}" onclick="selectedFilterApp='${a.id}'; render();">
+                ${a.name}
+              </div>
+            `).join("")}
+          </div>
+          ${filtered.map(c => `
+            <div class="card">
+              <div class="badge-row">
+                <span class="badge-type">${c.appName} • ${c.source}</span>
+                <span class="badge-reward">Maks. ${c.cap} TL İade</span>
+              </div>
+              <div style="font-weight:700; font-size:14px;">${c.title}</div>
+              <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">${c.description}</div>
+              <div class="path-hint">🧭 Gizli Sekme Konumu: ${c.whereToFindInApp}</div>
+              ${c.synergyNote ? `<div class="synergy-box">⚡ Kombo Fırsatı: ${c.synergyNote}</div>` : ''}
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+                <span style="font-size:11px; color:var(--text-muted);">Alt Limit: ${c.minSpend} TL</span>
+                <div class="btn-row">
+                  <button class="btn" onclick="openAppUrl('${c.appId}')">Uygulamayı Aç</button>
+                  <button class="btn ${c.joined ? 'btn-primary' : ''}" onclick="toggleJoin('${c.id}')">
+                    ${c.joined ? '✓ Katıldım' : 'Katıldım İşaretle'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          `).join("")}
+        `;
+      } else if (currentTab === 2) {
+        const tp = campaigns.filter(c => c.appId === "turkcell" || c.appId === "paycell");
+        container.innerHTML = `
+          <div class="card card-highlight">
+            <div style="font-weight:800; font-size:15px; color:var(--secondary);">⚡ Turkcell + Paycell + Banka 3'lü Sinerji Üssü</div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:6px; line-height:1.5;">
+              1️⃣ <b>Banka Uygulaması (BonusFlaş/Juzdan):</b> Fatura veya E-Ticaret kampanyasına katılın.<br/>
+              2️⃣ <b>Paycell Uygulaması:</b> <i>Fırsatlar</i> sekmesinden Fatura (75 TL), Market (150 TL), Akaryakıt (175 TL) ve Dijital (%50) kampanyalarında <b>Hemen Katıl</b> butonuna basın.<br/>
+              3️⃣ <b>Turkcell Uygulaması:</b> Faturanızı ve Pasaj alışverişinizi Paycell ile ödeyerek iki uygulamanın nakit iadesini aynı anda tetikleyin!
+            </div>
+          </div>
+          ${tp.map(c => `
+            <div class="card">
+              <div class="badge-row">
+                <span class="badge-type">${c.appName}</span>
+                <span class="badge-reward">+${c.cap} TL Nakit İade</span>
+              </div>
+              <div style="font-weight:700; font-size:14px;">${c.title}</div>
+              <div class="path-hint">🧭 Nerede Bulunur: ${c.whereToFindInApp}</div>
+              ${c.synergyNote ? `<div class="synergy-box">⚡ ${c.synergyNote}</div>` : ''}
+              <div style="margin-top:8px; display:flex; justify-content:flex-end; gap:6px;">
+                <button class="btn" onclick="openAppUrl('${c.appId}')">Sayfayı Aç</button>
+                <button class="btn ${c.joined ? 'btn-primary' : ''}" onclick="toggleJoin('${c.id}')">
+                  ${c.joined ? '✓ Katıldım' : 'Katıldım İşaretle'}
+                </button>
+              </div>
+            </div>
+          `).join("")}
+        `;
+      } else {
+        container.innerHTML = `
+          <div class="card">
+            <div style="font-weight:700; font-size:14px;">📥 Gizli / Kişiye Özel Kampanya Ekle (Metin / SMS / OCR)</div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">
+              Uygulama içinde gördüğünüz bir kampanyayı yapıştırın; alt limit ve nakit iade tutarını otomatik çözüp Strateji Motoruna ekleyelim:
+            </div>
+            <select id="customAppSelect" style="width:100%; margin-top:8px; padding:7px; background:var(--surface-variant); color:var(--text); border:1px solid var(--border); border-radius:8px;">
+              ${apps.map(a => `<option value="${a.id}">${a.name}</option>`).join("")}
+            </select>
+            <textarea id="customCamInput" rows="2" placeholder="Örn: Paycell Kart ile marketlerde 750 TL harcamaya 150 TL nakit iade!"></textarea>
+            <button class="btn btn-primary" style="margin-top:8px; width:100%;" onclick="importCustomCampaign()">
+              + Kampanyayı Çözümle ve Stratejiye Ekle
+            </button>
+          </div>
+
+          <div class="card">
+            <div style="font-weight:700; font-size:14px;">🤖 AI Nakit İade Strateji Danışmanı</div>
+            <button class="btn btn-primary" style="margin-top:8px; width:100%;" onclick="generateAiAdvisorReport()">
+              Bana Özel Nakit İade & Kombo Raporu Üret
+            </button>
+            ${aiReportText ? `<pre style="white-space:pre-wrap; font-size:11px; background:var(--surface-variant); padding:10px; border-radius:8px; margin-top:8px; color:var(--primary-light);">${aiReportText}</pre>` : ''}
+          </div>
+
+          <div class="card">
+            <div style="font-weight:700; font-size:14px;">📱 Telefonumdaki Aktif Uygulamalar</div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">Strateji hesaplamasına dahil edilecek uygulamaları seçin:</div>
+            ${apps.map(a => `
+              <div style="display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--surface-variant);">
+                <div>
+                  <div style="font-size:12px; font-weight:600;">${a.name}</div>
+                  <div style="font-size:10px; color:var(--text-muted);">${a.hint}</div>
+                </div>
+                <button class="btn ${a.enabled ? 'btn-primary' : ''}" onclick="toggleApp('${a.id}')">
+                  ${a.enabled ? 'Aktif' : 'Pasif'}
+                </button>
+              </div>
+            `).join("")}
+          </div>
+        `;
+      }
+    }
+
+    render();
+  </script>
+</body>
+</html>
